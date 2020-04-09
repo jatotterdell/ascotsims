@@ -14,4 +14,12 @@ RoxygenNote: 7.1.0
 Imports:
   varapproxr,
   pracma,
-  loo
+  loo,
+  matrixStats,
+  mvnfast,
+  HDInterval,
+  tibble,
+  dplyr,
+  tidyr,
+  parallel,
+  forcats
