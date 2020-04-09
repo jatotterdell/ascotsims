@@ -21,5 +21,6 @@ Imports:
   tibble,
   dplyr,
   tidyr,
+  purrr,
   parallel,
   forcats

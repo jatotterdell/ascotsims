@@ -26,7 +26,34 @@ lr_brar_trial(
   gpar1 = 1 - 0.95^3,
   gpar2 = 0,
   g = function(m) 1 - gpar1 * (m/length(n_seq))^gpar2,
-  supr_ref = 0.99,
+  supr_ref = 1,
+  mc_draw = 20000,
+  ...
+)
+
+lr_brar_trial(
+  n_seq,
+  full_dat,
+  X,
+  M0,
+  S0,
+  impute = F,
+  impute_sim = 100,
+  early_t = 7,
+  trans_prob = 0.75,
+  perm_drop = F,
+  rar = F,
+  rar_control = F,
+  hpar1 = 0.5,
+  hpar2 = 0,
+  h = function(m) hpar1 * (m/length(n_seq))^hpar2,
+  fpar1 = 0,
+  fpar2 = 0,
+  f = function(m) fpar1 * (m/length(n_seq))^fpar2,
+  gpar1 = 1 - 0.95^3,
+  gpar2 = 0,
+  g = function(m) 1 - gpar1 * (m/length(n_seq))^gpar2,
+  supr_ref = 1,
   mc_draw = 20000,
   ...
 )
@@ -82,7 +109,11 @@ lr_brar_trial(
 }
 \value{
 A list of the trial quantities
+
+A list of the trial quantities
 }
 \description{
+Run a logistic regression BRAR trial.
+
 Run a logistic regression BRAR trial.
 }
