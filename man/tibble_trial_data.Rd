@@ -5,8 +5,6 @@
 \title{Group list of trial outcomes into a tibble}
 \usage{
 tibble_trial_data(dat, ...)
-
-tibble_trial_data(dat, ...)
 }
 \arguments{
 \item{dat}{The results of `lr_brar_trial` as a list}
@@ -14,7 +12,5 @@ tibble_trial_data(dat, ...)
 \item{...}{Other arguments to `mclapply`}
 }
 \description{
-Group list of trial outcomes into a tibble
-
 Group list of trial outcomes into a tibble
 }
