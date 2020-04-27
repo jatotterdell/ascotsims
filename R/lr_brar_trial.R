@@ -42,20 +42,21 @@ lr_brar_trial <- function(
   impute_sim = 100,
   early_t = 7,
   trans_prob = 0.75,
-  perm_drop = F,
-  rar = F,
+  perm_drop = T,
   rar_control = F,
+  drop_best = F,
   hpar1 = 0.5,
   hpar2 = 0,
   h = function(m) hpar1 * (m / length(n_seq)) ^ hpar2,
-  fpar1 = 0,
+  fpar1 = 0.025,
   fpar2 = 0,
   f = function(m) fpar1 * (m / length(n_seq)) ^ fpar2,
-  gpar1 = 1 - 0.95^3,
+  gpar1 = 0.05,
   gpar2 = 0,
   g = function(m) 1 - gpar1 * (m / length(n_seq)) ^ gpar2,
-  supr_ref = 1,
+  supr_thres = 0.975,
   mc_draw = 2e4,
+  stop = FALSE,
   ...
 ) {
 
@@ -71,7 +72,6 @@ lr_brar_trial <- function(
   lr_mod <- function(y, n) {
     vb_mod(X = X, y, n, S0 = S0)
   }
-
 
   # Interim schedule
   n_max <- max(n_seq)
@@ -99,17 +99,19 @@ lr_brar_trial <- function(
   z_agg_ear <- matrix(0, n_int, A, dimnames = dm)
   p_trans <- matrix(0, n_int, A, dimnames = dm)
 
+  # Values at interim analysis
   p_supr <- matrix(0, n_int, A - 1, dimnames = list("interim" = 1:n_int, "arm" = arm_names[-1]))
-  is_supr <- matrix(0, n_int, A - 1, dimnames = list("interim" = 1:n_int, "arm" = arm_names[-1]))
   p_best_trt <- matrix(0, n_int, A - 1, dimnames = list("interim" = 1:n_int, "arm" = arm_names[-1]))
   p_best <- matrix(0, n_int, A, dimnames = dm)
   p_best_active <- matrix(0, n_int, A, dimnames = dm)
   p_rand <- matrix(1/A, n_int + 1, A, dimnames = list("interim" = 0:n_int, "arm" = arm_names))
-  a_active <- matrix(TRUE, n_int, A, dimnames = dm)
+
+  # State at interim analysis
+  is_supr <- matrix(0, n_int, A - 1, dimnames = list("interim" = 1:n_int, "arm" = arm_names[-1]))
+  is_active <- matrix(TRUE, n_int, A, dimnames = dm)
+  drop_at <- matrix(0, 1, A, dimnames = list("interim" = n_int, "arm" = arm_names))
   is_best <- matrix(TRUE, n_int, A, dimnames = dm)
-  c_best <- matrix(TRUE, n_int, A, dimnames = dm)
-  a_best_by <- matrix(TRUE, n_int, A, dimnames = dm)
-  ever_drop_by <- matrix(TRUE, n_int, A, dimnames = dm)
+  is_current_best <- matrix(TRUE, n_int, A, dimnames = dm)
 
   beta_mu <- matrix(0, n_int, P, dimnames = dm2)
   beta_lb <- matrix(0, n_int, P, dimnames = dm2)
@@ -190,37 +192,45 @@ lr_brar_trial <- function(
     eff_draws <- sweep(p_draws[, -1], 1, p_draws[, 1])
 
     p_supr[i, ] <- matrixStats::colMeans2(eff_draws < 0)
-    is_supr[i, ] <- p_supr[i, ] > supr_ref
+    is_supr[i, ] <- p_supr[i, ] > supr_thres
     p_best[i, ] <- prob_best(m_draws, minimum = TRUE)
     p_best_trt[i, ] <- prob_best(m_draws[, -1], minimum = TRUE)
 
     is_best[i, ] <- p_best[i, ] > g(i)
-    a_best_by[i, ] <- apply(is_best[1:i, , drop = F], 2, any)
-    c_best[i, ] <- p_best[i, ] == max(p_best[i, ])
+    is_current_best[i, ] <- p_best[i, ] == max(p_best[i, ])
 
     # Include control group in RAR or not?
     if(rar_control) {
 
-      a_active[i, ] <-  p_best[i, ] >= f(i)
-      if(perm_drop & i > 1) {
-        a_active[i, ] <- a_active[i, ] & a_active[i - 1, ]
+      if(drop_best) {
+        is_active[i, ] <-  p_best[i, ] >= f(i)
+      } else {
+        is_active[i, -1] <- p_supr[i, ] >= f(i)
+        is_active[i, 1] <- !any(is_supr[i, ])
       }
-      if(rar) p_rand[i + 1, ] <- brar_all(p_best[i, ], a_active[i, ], h(i))
+      if(perm_drop & i > 1) {
+        is_active[i, ] <- is_active[i, ] & is_active[i - 1, ]
+      }
+      p_rand[i + 1, ] <- brar_all(p_best[i, ], is_active[i, ], h(i))
 
     } else {
 
       # If control not in RAR, still drop if something superior
-      a_active[i, -1] <-  p_best[i, -1] >= f(i)
-      a_active[i, 1] <- !any(p_supr[i, ] > supr_ref)
-      if(perm_drop & i > 1) {
-        a_active[i, ] <- a_active[i, ] & a_active[i - 1, ]
+      if(drop_best) {
+        is_active[i, ] <-  p_best[i, ] >= f(i)
+      } else {
+        is_active[i, -1] <-  p_supr[i, ] >= f(i)
+        is_active[i, 1] <- !any(is_supr[i, ])
       }
-      if(rar) p_rand[i + 1, ] <- const_ctrl_brar(p_best[i, ], a_active[i, ], h(i))
+      if(perm_drop & i > 1) {
+        is_active[i, ] <- is_active[i, ] & is_active[i - 1, ]
+      }
+      p_rand[i + 1, ] <- const_ctrl_brar(p_best[i, ], is_active[i, ], h(i))
 
     }
 
-    p_best_active[i, a_active[i, ]] <- prob_best(m_draws[, a_active[i, ], drop = F], minimum = TRUE)
-    ever_drop_by[i, ] <- apply(!a_active[1:i, , drop = F], 2, any)
+    drop_at[1, which(!is_active[i, ] & drop_at[1, ] == 0)] <- i
+    p_best_active[i, is_active[i, ]] <- prob_best(m_draws[, is_active[i, ], drop = F], minimum = TRUE)
 
     # Parameter summaries
     hdival_p <- HDInterval::hdi(p_draws)
@@ -235,25 +245,14 @@ lr_brar_trial <- function(
     eff_var_p[i, ] <- matrixStats::colVars(eff_draws)
     arm_mu_lb[i, ] <- hdival_p[1, ]
     arm_mu_ub[i, ] <- hdival_p[2, ]
+
+    if(stop) {
+      if(sum(is_active[i, ] == 1) | any(is_best[i, ])) {
+
+      }
+    }
   }
   p_rand <- p_rand[-1, , drop = F]
-
-  # Interim summaries
-  # n_enr <- matrix(apply(n_agg_enr, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # n_obs <- matrix(apply(n_agg_obs, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # y_enr <- matrix(apply(y_agg_enr, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # y_obs <- matrix(apply(y_agg_obs, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # best_arm <- matrix(apply(is_best, 1, function(x) ifelse(any(x), which(x), 0)), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-
-  # # Arm summaries
-  # announce_supr <- matrix(suppressWarnings(apply(is_supr, 2, function(x) {min(which(x == TRUE))})),
-  #                         1, A - 1, dimnames = list("interim" = as.character(i), "arm" = arm_names[-1]))
-  # announce_best <- matrix(suppressWarnings(apply(is_best, 2, function(x) {min(which(x == TRUE))})),
-  #                         1, A, dimnames = list("interim" = as.character(i), "arm" = arm_names))
-  # drop_at <- matrix(suppressWarnings(apply(a_active, 2, function(x) {min(which(x == FALSE))})),
-  #                   1, A, dimnames = list("interim" = as.character(i), "arm" = arm_names))
-
-  # is_best <- cbind(is_best, "Total" = apply(is_best, 1, any))
 
   trial_quant <- nlist(
     n_agg_enr, y_agg_enr, z_agg_enr,
@@ -263,7 +262,7 @@ lr_brar_trial <- function(
     p_supr, is_supr,
     p_best, is_best,
     p_best_trt, p_best_active,
-    p_rand, a_active, a_best_by, c_best, ever_drop_by,
+    p_rand, is_active, is_current_best, drop_at,
     arm_mu_p, eff_mu_p,
     arm_mu_lb, arm_mu_ub,
     arm_var_p, eff_var_p
@@ -274,7 +273,7 @@ lr_brar_trial <- function(
   )
 
   return(
-    nlist(trial_quant, model_quant)
+    loo::nlist(trial_quant, model_quant)
   )
 }
 
@@ -332,12 +331,10 @@ lr_brar_trial2 <- function(
   hpar1 = 0.5,
   hpar2 = 0,
   h = function(m) hpar1 * (m / length(n_seq)) ^ hpar2,
-  fpar1 = 0,
-  fpar2 = 0,
-  f = function(m) fpar1 * (m / length(n_seq)) ^ fpar2,
-  gpar1 = 1 - 0.95^3,
-  gpar2 = 0,
-  g = function(m) 1 - gpar1 * (m / length(n_seq)) ^ gpar2,
+  epsilon = 0.05,
+  best_ref = 0.975,
+  best_ref_a = 0.975^(ncol(XA) - 1),
+  best_ref_b = 0.975^(ncol(XB)),
   supr_ref = 1,
   mc_draw = 2e4,
   ...
@@ -368,6 +365,8 @@ lr_brar_trial2 <- function(
   a <- ncol(XA)
   b <- ncol(XB) + 1
   ab <- a + b
+  a_indx <- 1:a
+  b_indx <-(a + 1):(ab - 1)
   A <- nrow(X)
   x <- numeric(n_max)
   y <- rep(NA_real_, n_max)
@@ -395,9 +394,10 @@ lr_brar_trial2 <- function(
   p_best <- matrix(0, n_int, A, dimnames = dm)
   p_best_active <- matrix(0, n_int, A, dimnames = dm)
   p_rand <- matrix(1/A, n_int + 1, A, dimnames = list("interim" = 0:n_int, "arm" = arm_names))
-  a_active <- matrix(TRUE, n_int, A, dimnames = dm)
+
+  is_active <- matrix(TRUE, n_int, A, dimnames = dm)
   is_best <- matrix(TRUE, n_int, A, dimnames = dm)
-  c_best <- matrix(TRUE, n_int, A, dimnames = dm)
+  is_current_best <- matrix(TRUE, n_int, A, dimnames = dm)
   a_best_by <- matrix(TRUE, n_int, A, dimnames = dm)
   ever_drop_by <- matrix(TRUE, n_int, A, dimnames = dm)
 
@@ -455,7 +455,6 @@ lr_brar_trial2 <- function(
     w00 <- aggregate(y[id_analysis] == 0 & z[id_analysis] == 0, by = list(x[id_analysis]), sum, drop = F)[, 2]
     p_trans[i, ] <- (1 + w01) / (2 + w01 + w00)
 
-
     # Do the imputation here
     if(impute) {
       ptran <- matrix(rbeta(impute_sim, 1 + w01, 1 + w00), impute_sim, A, byrow = T)
@@ -490,33 +489,34 @@ lr_brar_trial2 <- function(
     p_best[i, ] <- prob_best(m_draws, minimum = TRUE)
     p_best_trt[i, ] <- prob_best(m_draws[, -1], minimum = TRUE)
 
-    is_best[i, ] <- p_best[i, ] > g(i)
+    is_best[i, ] <- p_best[i, ] > best_ref
     a_best_by[i, ] <- apply(is_best[1:i, , drop = F], 2, any)
-    c_best[i, ] <- p_best[i, ] == max(p_best[i, ])
+    is_current_best[i, ] <- p_best[i, ] == max(p_best[i, ])
 
     # Include control group in RAR or not?
     if(rar_control) {
 
-      a_active[i, ] <-  p_best[i, ] >= f(i)
+      is_active[i, a_indx] <-  p_best_a[i, ] >= epsilon_A
+      is_active[i, b_indx] <-  p_best_b[i, ] >= epsilon_B
       if(perm_drop & i > 1) {
-        a_active[i, ] <- a_active[i, ] & a_active[i - 1, ]
+        is_active[i, ] <- is_active[i, ] & is_active[i - 1, ]
       }
-      if(rar) p_rand[i + 1, ] <- brar_all(p_best[i, ], a_active[i, ], h(i))
+      if(rar) p_rand[i + 1, ] <- brar_all(p_best[i, ] / n[i, ], is_active[i, ], h(i))
 
     } else {
 
       # If control not in RAR, still drop if something superior
-      a_active[i, -1] <-  p_best[i, -1] >= f(i)
-      a_active[i, 1] <- !any(p_supr[i, ] > supr_ref)
+      is_active[i, -1] <-  p_best[i, -1] >= f(i)
+      is_active[i, 1] <- !any(p_supr[i, ] > supr_ref)
       if(perm_drop & i > 1) {
-        a_active[i, ] <- a_active[i, ] & a_active[i - 1, ]
+        is_active[i, ] <- is_active[i, ] & is_active[i - 1, ]
       }
-      if(rar) p_rand[i + 1, ] <- const_ctrl_brar(p_best[i, ], a_active[i, ], h(i))
+      if(rar) p_rand[i + 1, ] <- const_ctrl_brar(p_best[i, ] / n[i, ], is_active[i, ], h(i))
 
     }
 
-    p_best_active[i, a_active[i, ]] <- prob_best(m_draws[, a_active[i, ], drop = F], minimum = TRUE)
-    ever_drop_by[i, ] <- apply(!a_active[1:i, , drop = F], 2, any)
+    p_best_active[i, is_active[i, ]] <- prob_best(m_draws[, is_active[i, ], drop = F], minimum = TRUE)
+    ever_drop_by[i, ] <- apply(!is_active[1:i, , drop = F], 2, any)
 
     # Parameter summaries
     hdival_p <- HDInterval::hdi(p_draws)
@@ -534,23 +534,6 @@ lr_brar_trial2 <- function(
   }
   p_rand <- p_rand[-1, , drop = F]
 
-  # Interim summaries
-  # n_enr <- matrix(apply(n_agg_enr, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # n_obs <- matrix(apply(n_agg_obs, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # y_enr <- matrix(apply(y_agg_enr, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # y_obs <- matrix(apply(y_agg_obs, 1, sum), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-  # best_arm <- matrix(apply(is_best, 1, function(x) ifelse(any(x), which(x), 0)), n_int, 1, dimnames = list("interim" = as.character(1:n_int), "arm" = "Total"))
-
-  # # Arm summaries
-  # announce_supr <- matrix(suppressWarnings(apply(is_supr, 2, function(x) {min(which(x == TRUE))})),
-  #                         1, A - 1, dimnames = list("interim" = as.character(i), "arm" = arm_names[-1]))
-  # announce_best <- matrix(suppressWarnings(apply(is_best, 2, function(x) {min(which(x == TRUE))})),
-  #                         1, A, dimnames = list("interim" = as.character(i), "arm" = arm_names))
-  # drop_at <- matrix(suppressWarnings(apply(a_active, 2, function(x) {min(which(x == FALSE))})),
-  #                   1, A, dimnames = list("interim" = as.character(i), "arm" = arm_names))
-
-  # is_best <- cbind(is_best, "Total" = apply(is_best, 1, any))
-
   trial_quant <- nlist(
     n_agg_enr, y_agg_enr, z_agg_enr,
     n_agg_obs, y_agg_obs, z_agg_obs,
@@ -559,7 +542,7 @@ lr_brar_trial2 <- function(
     p_supr, is_supr,
     p_best, is_best,
     p_best_trt, p_best_active,
-    p_rand, a_active, a_best_by, c_best, ever_drop_by,
+    p_rand, is_active, a_best_by, is_current_best, ever_drop_by,
     arm_mu_p, eff_mu_p,
     arm_mu_lb, arm_mu_ub,
     arm_var_p, eff_var_p
@@ -594,7 +577,8 @@ tibble_trial_data <- function(dat, ...) {
       purrr::reduce(dplyr::full_join, by = c("interim", "arm")) %>%
       dplyr::mutate(arm = forcats::fct_inorder(arm)) %>%
       dplyr::arrange(interim, arm)}, ...), .id = "trial") %>%
-    dplyr::mutate(trial = as.numeric(trial))
+    dplyr::mutate(trial = as.numeric(trial), interim = as.numeric(interim)) %>%
+    dplyr::arrange(trial, interim)
 }
 
 
@@ -615,5 +599,6 @@ tibble_model_data <- function(dat, ...) {
       purrr::reduce(dplyr::full_join, by = c("interim", "parameter")) %>%
       dplyr::mutate(parameter = forcats::fct_inorder(parameter)) %>%
       dplyr::arrange(interim, parameter)}, ...), .id = "trial") %>%
-    dplyr::mutate(trial = as.numeric(trial))
+    dplyr::mutate(trial = as.numeric(trial), interim = as.numeric(interim)) %>%
+    dplyr::arrange(trial, interim)
 }

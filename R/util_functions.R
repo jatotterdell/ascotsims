@@ -1,3 +1,77 @@
+#' Basic pseudoinverse
+#'
+#' @param X A matrix
+#' @return Pseudoinverse of X
+#' @export
+psolve <- function(X) {
+  solve(crossprod(X), t(X))
+}
+
+findfirst <- function(x, v = NA) {
+  j <- which(x)
+  if(length(j)) min(j) else v
+}
+
+
+#' Mass-weighted urn randomisation
+#'
+#' @param target_alloc The target allocation ratios
+#' @param sample_size The number of allocations to generate
+#' @param alpha Parameter to control imbalance between arms
+#' @return A list detailing the mass-weighted-urn process.
+#' @export
+mass_weighted_urn_design <- function(
+  target_alloc,
+  sample_size,
+  alpha = 4
+) {
+  arms <- length(target_alloc)
+  prob_alloc <- target_alloc / sum(target_alloc)
+  # Masses
+  x <- matrix(0, sample_size + 1, arms)
+  x[1, ] <- alpha * prob_alloc
+  # Sample size
+  n <- matrix(0, sample_size + 1, arms)
+  # Random number
+  y <- runif(sample_size)
+  # Conditional selection probability
+  p <- matrix(0, sample_size + 1, arms)
+  # Imbalance
+  d <- rep(0, sample_size)
+  # Allocation Predictability
+  g <- rep(0, sample_size + 1)
+  # Treatment assignment
+  trt <- rep(0, sample_size)
+
+  imbalance_cap <- sqrt(sum(((alpha - 1)*(1 - prob_alloc) + (arms - 1))^2))
+
+  for(i in 2:(sample_size + 1)) {
+    # Update allocation probabilities
+    p[i - 1, ] <- pmax(alpha * prob_alloc - n[i - 1, ] + (i - 1)*prob_alloc, 0)
+    p[i - 1, ] <- p[i - 1, ] / sum(p[i - 1, ])
+    trt[i-1] <- findInterval(y[i - 1], c(0, cumsum(p[i - 1, ])))
+    # Update sample sizes
+    n[i, ] <- n[i - 1, ]
+    n[i, trt[i-1]] <- n[i, trt[i-1]] + 1
+    # Update urn masses
+    x[i, trt[i-1]] <- x[i - 1, trt[i-1]] - 1 + prob_alloc[trt[i-1]]
+    x[i, -trt[i-1]] <- x[i - 1, -trt[i-1]] + prob_alloc[-trt[i-1]]
+    # Calculate imbalance
+    d[i - 1] <- sqrt(sum((n[i, ] - (i - 1)*prob_alloc)^2))
+    # Calculate allocation predictability
+    g[i] <- d[i - 1] / alpha
+  }
+  return(list(
+    max_imbalance_bound = imbalance_cap,
+    imbalance = d,
+    alloc_predict = g,
+    rand_num = y,
+    trt = trt,
+    mass = x,
+    sample_size = n,
+    selection_prob = p))
+}
+
 #' Variance of a beta random variable with parameters a and b
 #'
 #' @param a Par 1
@@ -388,19 +462,53 @@ prob_best <- function(mat, minimum = F) {
 #' @param active Flag for active arms
 #' @param h Scaling factor
 fix_ctrl_brar <- function(quantity, active, h) {
-  arms <- length(active) + 1
+  arms <- length(active)
   w <- numeric(arms)
   if(!any(active)) {
+    w <- rep(0, arms)
+  } else if(!any(active[-1])) {
     w[1] <- 1
-    return(w)
+  } else if(!active[1]) {
+    w[1] <- 0
+    w[-1] <- quantity[-1] ^ h
+    w[-1][!active[-1]] <- 0
+    w[-1] <- normalise(w[-1])
   } else {
-    w[1] <- 1 / (sum(active) + 1)
-    w[-1] <- quantity ^ h
-    w[-1][!active] <- 0
+    w[1] <- 1 / sum(active)
+    w[-1] <- quantity[-1] ^ h
+    w[-1][!active[-1]] <- 0
     w[-1] <- normalise(w[-1])
     w[-1] <- (1 - w[1]) * w[-1]
-    return(w)
   }
+  return(w)
+}
+
+
+#' BRAR with fixed ratio to control
+#'
+#' @param quantity The quantity for allocation ratios
+#' @param active Flag for active arms
+#' @param h Scaling factor
+fix_ctrl_brar2 <- function(quantity, active, h, fixq) {
+  arms <- length(active)
+  w <- numeric(arms)
+  if(!any(active)) {
+    w <- rep(0, arms)
+  } else if(!any(active[-1])) {
+    w[1] <- 1
+  } else if(!active[1]) {
+    w[1] <- 0
+    w[-1] <- quantity[-1] ^ h
+    w[-1][!active[-1]] <- 0
+    w[-1] <- normalise(w[-1])
+  } else {
+    w[1] <- fixq
+    w[-1] <- quantity[-1] ^ h
+    w[-1][!active[-1]] <- 0
+    w[-1] <- normalise(w[-1])
+    w[-1] <- (1 - w[1]) * w[-1]
+  }
+  return(w)
 }
 
 
@@ -436,6 +544,7 @@ match_ctrl_brar <- function(quantity, active, n, h, bpar = 1) {
 #' @return Allocation probabilities to each arm.
 #' @examples
 #' ascotsims:::const_ctrl_brar(runif(5), sample(c(TRUE, FALSE), 5, rep = TRUE), 1)
+#' @export
 const_ctrl_brar <- function(quantity, active, h) {
   arms <- length(active)
   w <- numeric(arms)

@@ -21,12 +21,10 @@ lr_brar_trial2(
   hpar1 = 0.5,
   hpar2 = 0,
   h = function(m) hpar1 * (m/length(n_seq))^hpar2,
-  fpar1 = 0,
-  fpar2 = 0,
-  f = function(m) fpar1 * (m/length(n_seq))^fpar2,
-  gpar1 = 1 - 0.95^3,
-  gpar2 = 0,
-  g = function(m) 1 - gpar1 * (m/length(n_seq))^gpar2,
+  epsilon = 0.05,
+  best_ref = 0.975,
+  best_ref_a = 0.975^(ncol(XA) - 1),
+  best_ref_b = 0.975^(ncol(XB)),
   supr_ref = 1,
   mc_draw = 20000,
   ...
@@ -65,6 +63,12 @@ lr_brar_trial2(
 
 \item{h}{Function for RAR}
 
+\item{supr_ref}{If dropping control, what threshold must an intervention arm achieve in terms of superiority}
+
+\item{mc_draw}{Number of Monte Carlo draws form approximating posterior}
+
+\item{...}{Other function arguments}
+
 \item{fpar1}{Parameter to control lack of effect boundary (futility)}
 
 \item{fpar2}{Parameter to control lack of effect boundary (futility)}
@@ -76,12 +80,6 @@ lr_brar_trial2(
 \item{gpar2}{Parameter to control most effective boundary (success)}
 
 \item{g}{Function for most effective boundary}
-
-\item{supr_ref}{If dropping control, what threshold must an intervention arm achieve in terms of superiority}
-
-\item{mc_draw}{Number of Monte Carlo draws form approximating posterior}
-
-\item{...}{Other function arguments}
 }
 \value{
 A list of the trial quantities
