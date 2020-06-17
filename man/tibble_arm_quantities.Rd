@@ -4,10 +4,10 @@
 \alias{tibble_arm_quantities}
 \title{Group list of trial outcomes into a tibble}
 \usage{
-tibble_arm_quantities(dat, ...)
+tibble_arm_quantities(dat, final = TRUE, ...)
 }
 \arguments{
-\item{dat}{The results of `lr_brar_trial` as a list}
+\item{dat}{The results of `ascot_trial2` as a list}
 
 \item{...}{Other arguments to `mclapply`}
 }

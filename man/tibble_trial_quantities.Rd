@@ -9,7 +9,7 @@ tibble_trial_quantities(dat, ...)
 tibble_trial_quantities(dat, ...)
 }
 \arguments{
-\item{dat}{The results of `lr_brar_trial` as a list}
+\item{dat}{The results of `ascot_trial2` as a list}
 
 \item{...}{Other arguments to `mclapply`}
 }

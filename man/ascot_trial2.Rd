@@ -2,7 +2,7 @@
 % Please edit documentation in R/ascot_trial2.R
 \name{ascot_trial2}
 \alias{ascot_trial2}
-\title{Run ASCOT trial simulation}
+\title{Run updated ASCOT trial simulation}
 \usage{
 ascot_trial2(
   b,
@@ -12,21 +12,47 @@ ascot_trial2(
   equivalent_thres = 0.9,
   futility_thres = 0.01,
   ineffective_thres = 0.1,
+  inferior_thres = 0.01,
   best_thres = 0.95,
   av_less_eff_thres = 0.01,
   rar_control = FALSE,
   rar_best = FALSE,
+  rar_scale = 0.5,
+  min_rar = c(0.05, 0.05, 0.1),
   perm_drop = TRUE,
   use_mwud = TRUE,
   use_optimal = FALSE,
   early_t = 7,
-  h = 0.5,
-  trans_prob = 0.75,
   mc_draw = 20000,
   return_all = FALSE,
   ...
 )
 }
+\arguments{
+\item{b}{The true log-odds parameter}
+
+\item{n_seq}{The sequence of interim analysis in terms of sample size}
+
+\item{delta}{The reference log-odds value for futility}
+
+\item{effective_thres}{The threshold for declaring a treatment effective}
+
+\item{equivalent_thres}{The threshold for declaring a treatment equivalent to SoC}
+
+\item{futility_thres}{The threshold for declaring a treatment futile}
+
+\item{rar_control}{Indicate if control should be included in RAR or fixed to 1/(num active arms)}
+
+\item{rar_best}{Indicate if RAR should be proportional to Pr(best) or Pr(effective)}
+
+\item{min_rar}{The minimum allocation to an arm in each domain (e.g. if Pr(alloc=1)<min_rar then set Pr(alloc=1)=min_rar)}
+
+\item{perm_drop}{Permanently drop arms or only suspend them}
+
+\item{use_mwud}{Use Mass-Weighted Urn for randomisation or just simple randomisation}
+
+\item{mc_draw}{The number of Monte Carlo draws to use for computing posterior quantities}
+}
 \description{
-Run ASCOT trial simulation
+Run updated ASCOT trial simulation
 }

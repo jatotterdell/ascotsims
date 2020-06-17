@@ -12,6 +12,21 @@ findfirst <- function(x, v = NA) {
   if(length(j)) min(j) else v
 }
 
+#' Multiply every column combination between two matrices
+#'
+#' Function is used for generating interactions between domain matrices.
+#' Note that terms on matrix A change first, i.e. `out[, 1] = A[, 1]B[, 1]`, `out[, 2] = A[, 2]B[,1]` etc.
+#'
+#' @param A matrix 1
+#' @param B matrix 2
+#' @return Matrix of interactions between A and B
+colwise_mult <- function(A, B, sep = ".") {
+  out <- t(sapply(1:nrow(A), function(i) tcrossprod(A[i, ], B[i, ])))
+  rownames(out) <- rownames(A)
+  colnames(out) <- paste(colnames(A), rep(colnames(B), each = ncol(A)), sep = sep)
+  return(out)
+}
+
 
 #' Mass-weighted urn randomisation
 #'
@@ -583,6 +598,53 @@ brar_all <- function(quantity, active, h) {
     w[!active] <- 0
     w <- normalise(w)
   }
+  return(w)
+}
+
+
+
+brar <- function(quantity, active, h, min_rar) {
+  arms <- length(active)
+  w <- numeric(arms)
+  if(!any(active)) {
+    w <- rep(0, arms)
+    w[1] <- 1 # If nothing active, then reactivate SoC
+  } else if(active[1] & !any(active[-1])) {
+    w <- rep(0, arms)
+    w[1] <- 1
+  } else  {
+    w <- quantity ^ h
+    w[!active] <- 0
+    w <- w / sum(w)
+  }
+  below_min <- w < min_rar & active
+  w[!below_min] <- w[!below_min]*(1 - min_rar*sum(below_min))
+  w[below_min] <- min_rar
+  return(w)
+}
+
+
+brar_fix <- function(quantity, active, h, min_rar) {
+  arms <- length(active)
+  active_arms <- sum(active)
+  w <- numeric(arms)
+  if(!any(active)) {
+    w <- rep(0, arms)
+    w[1] <- 1 # If nothing active, then reactivate SoC
+  } else if(active[1] & !any(active[-1])) {
+    w <- rep(0, arms)
+    w[1] <- 1
+  } else {
+    w <- quantity^h
+    w[1] <- 1 / active_arms
+    w[!active] <- 0
+    w[-1] <- w[-1] / sum(w[-1])
+    w[-1] <- (1 - w[1]) * w[-1]
+  }
+  below_min <- w[-1] < min_rar & active[-1]
+  w[-1][below_min] <- min_rar
+  if(sum(w[-1][!below_min]) > 0)
+    w[-1][!below_min] <- w[-1][!below_min] * (1 - w[1] - min_rar*sum(below_min)) / sum(w[-1][!below_min])
   return(w)
 }
 
