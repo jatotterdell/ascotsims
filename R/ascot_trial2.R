@@ -20,10 +20,10 @@ ascot_trial2 <- function(
   delta = log(1.2),
   effective_thres = 0.99,
   equivalent_thres = 0.9,
-  futility_thres = 0.01,
-  ineffective_thres = 0.1,
+  futility_thres = 0.95,
+  ineffective_thres = 0.01,
   inferior_thres = 0.01,
-  best_thres = 0.95,
+  superior_thres = 0.99,
   rar_control = FALSE,
   rar_best = FALSE,
   rar_scale = 0.5,
@@ -90,7 +90,6 @@ ascot_trial2 <- function(
               "a1:a2 - a2" = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0))
   colnames(Ca) <- colnames(X)
 
-
   # Initialise allocation ratios
   if(use_optimal) {
     ratio_dom <- sapply(list(A = Xa, B = Xb, C = Xc),
@@ -112,9 +111,11 @@ ascot_trial2 <- function(
   #---------#
 
   # Data
-  p <- plogis(X %*% b)[, 1]
   n_arms <- nrow(X)
   n_pars <- ncol(X)
+  n_ctr  <- nrow(Ca)
+
+  p <- plogis(X %*% b)[, 1]
   full_dat <- gen_potential_outcomes(max(n_seq), p, ...)
   tdat <- full_dat[, 1:2]
   dat <- full_dat[, -(1:2)]
@@ -129,7 +130,7 @@ ascot_trial2 <- function(
   n_enrolled <- 0
 
   # Output labels
-  arm_names <- rownames(X)
+  arm_names <- rownames(XI)
   par_names <- colnames(X)
   arm_dm <- list("interim" = 1:n_int, "arm" = arm_names)
   arm_dm2 <- list("interim" = 1:n_int, "arm" = arm_names[-1])
@@ -185,33 +186,39 @@ ascot_trial2 <- function(
   trt_in_best <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
 
   is_trt_active      <- matrix(TRUE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  is_trt_effective   <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2)
-  is_trt_equivalent  <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<0)
-  is_trt_ineffective <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<d)
-  is_trt_futile      <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(-d<sum(b)<d)
-  is_trt_superior    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  is_trt_inferior    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
+  is_trt_eff   <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2)
+  is_trt_equ  <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<0)
+  is_trt_ineff <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<d)
+  is_trt_fut      <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(-d<sum(b)<d)
+  is_trt_sup    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
+  is_trt_inf    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
 
   # Additional constrast storage
   ctr_mu <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  ctr_lb <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  ctr_ub <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
   ctr_eff <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
   ctr_fut <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  ctr_equ <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  is_ctr_eff <- matrix(FALSE, n_int, n_ctr, dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  is_ctr_equ <- matrix(FALSE, n_int, n_ctr, dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
+  is_ctr_fut <- matrix(FALSE, n_int, n_ctr, dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
 
   # Regimen storage
-  reg_mu  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_var <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_lb  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_ub  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_eff <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_fut <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_equ <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
-  reg_bes <- matrix(0, n_int, n_arms, dimnames = arm_dm)
-
-  is_reg_active      <- matrix(TRUE, n_int, n_arms, dimnames = arm_dm)
-  is_reg_effective   <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2)
-  is_reg_equivalent  <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(sum(b)<0)
-  is_reg_ineffective <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(sum(b)<d)
-  is_reg_futile      <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(-d<sum(b)<d)
+  # reg_mu  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_var <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_lb  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_ub  <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_eff <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_fut <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_equ <- matrix(0, n_int, n_arms - 1, dimnames = arm_dm2)
+  # reg_bes <- matrix(0, n_int, n_arms, dimnames = arm_dm)
+  #
+  # is_reg_active      <- matrix(TRUE, n_int, n_arms, dimnames = arm_dm)
+  # is_reg_eff   <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2)
+  # is_reg_equ  <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(sum(b)<0)
+  # is_reg_ineff <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(sum(b)<d)
+  # is_reg_fut      <- matrix(FALSE, n_int, n_arms - 1, dimnames = arm_dm2) # Pr(-d<sum(b)<d)
 
   arm_mu <- matrix(0, n_int, n_arms, dimnames = arm_dm)
   arm_var <- matrix(0, n_int, n_arms, dimnames = arm_dm)
@@ -297,39 +304,46 @@ ascot_trial2 <- function(
     trt_draws   <- cbind(trt_draws_a, trt_draws_b, trt_draws_c)
 
     # Regimen Effects
-    reg_draws <- par_draws[, -1] %*% t(X[, -1][-1, ])
+    # reg_draws <- par_draws[, -1] %*% t(X[, -1][-1, ])
 
     # Parameter summaries
-    hdival <- HDInterval::hdi(par_draws)
-    par_mu[i, ]  <- matrixStats::colMeans2(par_draws)
-    par_var[i, ] <- diag(mod$Sigma)
-    par_lb[i, ]  <- hdival[1, ]
-    par_ub[i, ]  <- hdival[2, ]
-    par_eff[i, ] <- matrixStats::colMeans2(par_draws[, -1] < 0)
-    par_fut[i, ] <- matrixStats::colMeans2(par_draws[, -1] < -delta)
-    par_equ[i, ] <- matrixStats::colMeans2(abs(par_draws[, -1]) < delta)
+    # hdival <- HDInterval::hdi(par_draws)
+    # par_mu[i, ]  <- matrixStats::colMeans2(par_draws)
+    # par_var[i, ] <- diag(mod$Sigma)
+    # par_lb[i, ]  <- hdival[1, ]
+    # par_ub[i, ]  <- hdival[2, ]
+    # par_eff[i, ] <- matrixStats::colMeans2(par_draws[, -1] < 0)
+    # par_fut[i, ] <- matrixStats::colMeans2(par_draws[, -1] > -delta)
+    # par_equ[i, ] <- matrixStats::colMeans2(abs(par_draws[, -1]) < delta)
 
     # Contrast summaries
+    hdival <- HDInterval::hdi(ctr_draws)
     ctr_mu[i, ] <- matrixStats::colMeans2(ctr_draws)
+    ctr_lb[i, ]  <- hdival[1, ]
+    ctr_ub[i, ]  <- hdival[2, ]
     ctr_eff[i, ] <- matrixStats::colMeans2(ctr_draws < 0)
-    ctr_fut[i, ] <- matrixStats::colMeans2(ctr_draws < -delta)
+    ctr_fut[i, ] <- matrixStats::colMeans2(ctr_draws > -delta)
+    ctr_equ[i, ] <- matrixStats::colMeans2(abs(ctr_draws) < delta)
+    is_ctr_eff[i, ] <- ctr_eff[i, ] > effective_thres
+    is_ctr_fut[i, ] <- ctr_fut[i, ] > futility_thres
+    is_ctr_equ[i, ] <- ctr_equ[i, ] > equivalent_thres
 
     # Regimen summaries
-    hdival <- HDInterval::hdi(reg_draws)
-    reg_mu[i, ] <- matrixStats::colMeans2(reg_draws)
-    reg_lb[i, ] <- hdival[1, ]
-    reg_ub[i, ] <- hdival[2, ]
-    reg_eff[i, ] <- matrixStats::colMeans2(reg_draws < 0)
-    reg_fut[i, ] <- matrixStats::colMeans2(reg_draws < -delta)
-    reg_equ[i, ] <- matrixStats::colMeans2(abs(reg_draws) < delta)
-    reg_bes[i, ] <- prob_best(eta_draws, minimum = T)
-
-    is_reg_effective[i, ] <- reg_eff[i, ] > effective_thres
-    is_reg_equivalent[i, ] <- reg_equ[i, ] > equivalent_thres
-    is_reg_ineffective[i, ] <- reg_eff[i, ] < ineffective_thres
-    is_reg_futile[i, ] <- reg_fut[i, ] < futility_thres
-    is_reg_active[i, 1] <- !any(is_reg_effective[i, ])
-    is_reg_active[i, -1] <- !(is_reg_ineffective)[i, ]
+    # hdival <- HDInterval::hdi(reg_draws)
+    # reg_mu[i, ] <- matrixStats::colMeans2(reg_draws)
+    # reg_lb[i, ] <- hdival[1, ]
+    # reg_ub[i, ] <- hdival[2, ]
+    # reg_eff[i, ] <- matrixStats::colMeans2(reg_draws < 0)
+    # reg_fut[i, ] <- matrixStats::colMeans2(reg_draws < -delta)
+    # reg_equ[i, ] <- matrixStats::colMeans2(abs(reg_draws) < delta)
+    # reg_bes[i, ] <- prob_best(eta_draws, minimum = T)
+    #
+    # is_reg_eff[i, ] <- reg_eff[i, ] > effective_thres
+    # is_reg_equ[i, ] <- reg_equ[i, ] > equivalent_thres
+    # is_reg_ineff[i, ] <- reg_eff[i, ] < ineffective_thres
+    # is_reg_fut[i, ] <- reg_fut[i, ] < futility_thres
+    # is_reg_active[i, 1] <- !any(is_reg_eff[i, ])
+    # is_reg_active[i, -1] <- !(is_reg_ineff)[i, ]
 
     # Treatment summaries
     hdival <- HDInterval::hdi(trt_draws)
@@ -337,7 +351,7 @@ ascot_trial2 <- function(
     trt_lb[i, ]  <- hdival[1, ]
     trt_ub[i, ]  <- hdival[2, ]
     trt_eff[i, ] <- matrixStats::colMeans2(trt_draws < 0)
-    trt_fut[i, ] <- matrixStats::colMeans2(trt_draws < -delta)
+    trt_fut[i, ] <- matrixStats::colMeans2(trt_draws > -delta)
     trt_equ[i, ] <- matrixStats::colMeans2(abs(trt_draws) < delta)
     trt_bes[i, ] <- c(
       prob_best(trt_draws[, grepl("a", colnames(trt_draws))], minimum = T),
@@ -352,23 +366,34 @@ ascot_trial2 <- function(
     trt_in_best[i, ] <- matrixStats::colMeans2((matrixStats::rowRanks(eta_draws) == 1) %*% XI)
 
     # Treatment triggers
-    is_trt_effective[i, ] <- trt_eff[i, ] > effective_thres     # Better than SoC
-    is_trt_equivalent[i, ] <- trt_equ[i, ] > equivalent_thres   # Equivalent to SoC
-    is_trt_ineffective[i, ] <- trt_eff[i, ] < ineffective_thres # Harmful, i.e. worse than SoC
-    is_trt_futile[i, ] <- trt_fut[i, ] < futility_thres         # Insufficiently better than SoC
-    is_trt_superior[i, ] <- trt_in_best[i, ] > best_thres       # Superior (best in domain)
+    is_trt_eff[i, ] <- trt_eff[i, ] > effective_thres     # Better than SoC
+    is_trt_equ[i, ] <- trt_equ[i, ] > equivalent_thres   # Equivalent to SoC
+    is_trt_ineff[i, ] <- trt_eff[i, ] < ineffective_thres # Harmful, i.e. worse than SoC
+    is_trt_fut[i, ] <- trt_fut[i, ] > futility_thres         # Insufficiently better than SoC
+
+    # Check the extra contrasts for a1:a2 interaction futility
+    is_trt_fut[i, "a1:a2"] <- any(is_ctr_fut[i, ])
 
     # Active treatments in domain
+    # Refer to model document for the decision triggers, but basically
+    # - If something superior to nothing, drop nothing
+    # - If something equivalent to nothing drop the something
+    # - If something superior drop everything else
+    # - If something inferior drop the something
+    # - If something futile (inadequate) drop the something
+    # - If SoC (nothing) has been dropped, but subsequently every treatment also dropped, then reactivate SoC
     for(dom in c("a", "b", "c")) {
       idx1 <- grep(dom, colnames(is_trt_active))
-      idx2 <- grep(dom, colnames(is_trt_effective))
+      idx2 <- grep(dom, colnames(is_trt_eff))
       nact <- sum(is_trt_active[i, idx1])
       narm <- length(idx1) # Use narm or narct in inferior?
-      is_trt_inferior[i, idx1] <- trt_in_best[i, idx1] < inferior_thres / (narm - 1)
-      is_trt_active[i, idx1[-1]] <- !(is_trt_equivalent[i, idx2] | is_trt_ineffective[i, idx2] | is_trt_futile[i, idx2] | is_trt_inferior[i, idx1[-1]])
-      is_trt_active[i, idx1[1]] <- !any(is_trt_effective[i, idx2] | is_trt_inferior[i, idx1[1]])
-      if(any(is_trt_superior[i, idx1])) {
-        bidx <- which(is_trt_superior[i, idx1])
+
+      is_trt_sup[i, idx1] <- trt_in_best[i, idx1] > superior_thres^(narm - 1)       # Superior (best in domain)
+      is_trt_inf[i, idx1] <- trt_in_best[i, idx1] < inferior_thres / (narm - 1) # Inferior (not best in domain)
+      is_trt_active[i, idx1[-1]] <- !(is_trt_equ[i, idx2] | is_trt_ineff[i, idx2] | is_trt_fut[i, idx2] | is_trt_inf[i, idx1[-1]])
+      is_trt_active[i, idx1[1]] <- !any(is_trt_eff[i, idx2] | is_trt_inf[i, idx1[1]])
+      if(any(is_trt_sup[i, idx1])) {
+        bidx <- which(is_trt_sup[i, idx1])
         is_trt_active[i, idx1][bidx] <- TRUE
         is_trt_active[i, idx1][-bidx] <- FALSE
       }
@@ -419,9 +444,8 @@ ascot_trial2 <- function(
       }
     }
 
-    if(sum(p_rand_trt[i + 1, ]) != 3) {
-      cat(p_rand_trt[i + 1, ])
-      stop("RAR allocation mismatch.")
+    if(!all.equal(sum(p_rand_trt[i + 1, ]), 3)) {
+      return(p_rand_trt[i + 1, ])
     }
 
     # Update regimen specific randomisation probabilities
@@ -435,7 +459,7 @@ ascot_trial2 <- function(
     # if(final) break
     # if(!any(is_trt_active[i, -1])) stopped <- TRUE
     # If only one active and it's superior then stop
-    # if(!any(is_trt_active[i, -1] & !is_trt_effective[i, ])) stopped <- TRUE
+    # if(!any(is_trt_active[i, -1] & !is_trt_eff[i, ])) stopped <- TRUE
 
     # if(final) break
     # if(stopped) break
@@ -446,31 +470,41 @@ ascot_trial2 <- function(
 
   drop_trt_at <- apply(is_trt_active, 2, function(x) which(x == FALSE)[1])
 
-  trigger_effective_at <- apply(is_trt_effective, 2, function(x) which(x)[1])
-  trigger_equivalent_at <- apply(is_trt_equivalent, 2, function(x) which(x)[1])
-  trigger_ineffective_at <- apply(is_trt_ineffective, 2, function(x) which(x)[1])
-  trigger_futile_at <- apply(is_trt_futile, 2, function(x) which(x)[1])
+  # Summarise when triggers first occurred and whether they occurred at all
+  trig_eff_at   <- apply(is_trt_eff, 2, findfirst)
+  trig_equ_at   <- apply(is_trt_equ, 2, findfirst)
+  trig_ineff_at <- apply(is_trt_ineff, 2, findfirst)
+  trig_fut_at   <- apply(is_trt_fut, 2, findfirst)
+  trig_sup_at   <- apply(is_trt_sup, 2, findfirst)
+  trig_inf_at   <- apply(is_trt_inf, 2, findfirst)
+  trig_drop_at   <- apply(!is_trt_active, 2, findfirst)
 
-  trigger_ineffective <- ifelse(is.na(trigger_ineffective_at), FALSE, ifelse(trigger_ineffective_at < n_int, TRUE, FALSE))
-  trigger_equivalent <- ifelse(is.na(trigger_equivalent_at), FALSE, ifelse(trigger_equivalent_at < n_int, TRUE, FALSE))
-  trigger_effective <- ifelse(is.na(trigger_effective_at), FALSE, ifelse(trigger_effective_at < n_int, TRUE, FALSE))
-  trigger_futility <- ifelse(is.na(trigger_futile_at), FALSE, ifelse(trigger_futile_at < n_int, TRUE, FALSE))
+  trig_eff   <- !is.na(trig_eff_at)
+  trig_ineff <- !is.na(trig_ineff_at)
+  trig_equ   <- !is.na(trig_equ_at)
+  trig_fut   <- !is.na(trig_fut_at)
+  trig_sup   <- !is.na(trig_sup_at)
+  trig_inf   <- !is.na(trig_inf_at)
+  trig_drop  <- !is.na(trig_drop_at)
 
-  final_effective <- is_trt_effective[i, ]
-  final_ineffective <- is_trt_ineffective[i, ]
-  final_equivalent <- is_trt_equivalent[i, ]
-  final_futile <- is_trt_futile[i, ]
+  # trig_ineff <- ifelse(is.na(trig_ineff_at), FALSE, ifelse(trig_ineff_at < n_int, TRUE, FALSE))
+  # trig_equ <- ifelse(is.na(trig_equ_at), FALSE, ifelse(trig_equ_at < n_int, TRUE, FALSE))
+  # trig_eff <- ifelse(is.na(trigger_eff_at), FALSE, ifelse(trigger_eff_at < n_int, TRUE, FALSE))
+  # trig_futility <- ifelse(is.na(trigger_fut_at), FALSE, ifelse(trigger_fut_at < n_int, TRUE, FALSE))
+
+  final_eff    <- is_trt_eff[i, ]
+  final_ineff  <- is_trt_ineff[i, ]
+  final_equ    <- is_trt_equ[i, ]
+  final_fut    <- is_trt_fut[i, ]
+  final_sup    <- is_trt_sup[i, ]
+  final_inf    <- is_trt_inf[i, ]
+  final_active <- is_trt_active[i, ]
 
   stop_early <- stopped
   stop_at <- ifelse(stopped, i - 1, NA)
-  drop_soc_at <- findfirst(!is_trt_active[, 1])
-
-  futility <- all(trigger_futility)
-  success <-any(trigger_effective)
-  effective <- any(final_effective)
-  ineffective <- all(final_ineffective)
 
   final_results <- list(
+
     arm_quantities = list(
       n_agg_obs = n_agg_obs[i, , drop = F],
       y_agg_obs = y_agg_obs[i, , drop = F],
@@ -481,15 +515,15 @@ ascot_trial2 <- function(
       arm_ub = arm_ub[i, , drop = F]
     ),
 
-    par_quantities = list(
-      par_mu = par_mu[i, , drop = F],
-      par_var = par_var[i, , drop = F],
-      par_lb = par_lb[i, , drop = F],
-      par_ub = par_ub[i, , drop = F],
-      par_eff = par_eff[i, , drop = F],
-      par_equ = par_equ[i, , drop = F],
-      par_fut = par_fut[i, , drop = F]
-    ),
+    # par_quantities = list(
+    #   par_mu = par_mu[i, , drop = F],
+    #   par_var = par_var[i, , drop = F],
+    #   par_lb = par_lb[i, , drop = F],
+    #   par_ub = par_ub[i, , drop = F],
+    #   par_eff = par_eff[i, , drop = F],
+    #   par_equ = par_equ[i, , drop = F],
+    #   par_fut = par_fut[i, , drop = F]
+    # ),
 
     trt_quantities = list(
       p_rand_trt = p_rand_trt[i, , drop = F],
@@ -505,36 +539,35 @@ ascot_trial2 <- function(
       trt_fut = trt_fut[i, , drop = F],
       trt_bes = trt_bes[i, , drop = F],
       trt_in_best = trt_in_best[i, , drop = F],
-      is_trt_effective =is_trt_effective[i, , drop = F],
-      is_trt_equivalent = is_trt_equivalent[i, , drop = F],
-      is_trt_ineffective = is_trt_ineffective[i, , drop = F],
-      is_trt_futile = is_trt_futile[i, , drop = F],
+      is_trt_eff =is_trt_eff[i, , drop = F],
+      is_trt_equ = is_trt_equ[i, , drop = F],
+      is_trt_ineff = is_trt_ineff[i, , drop = F],
+      is_trt_fut = is_trt_fut[i, , drop = F],
       is_trt_active = is_trt_active[i, , drop = F],
-      is_trt_superior = is_trt_superior[i, , drop = F],
-      is_trt_inferior = is_trt_inferior[i, , drop = F]
+      is_trt_sup = is_trt_sup[i, , drop = F],
+      is_trt_inf = is_trt_inf[i, , drop = F]
     ),
 
     ctr_quantities = list(
       ctr_mu = ctr_mu[i, , drop = F],
+      ctr_lb = ctr_lb[i, , drop = F],
+      ctr_ub = ctr_ub[i, , drop = F],
       ctr_eff = ctr_eff[i, , drop = F],
-      ctr_fut = ctr_fut[i, , drop = F]
+      ctr_fut = ctr_fut[i, , drop = F],
+      is_ctr_eff = is_ctr_eff[i, , drop = F],
+      is_ctr_fut = is_ctr_fut[i, , drop = F],
+      is_ctr_equ = is_ctr_equ[i, , drop = F]
     ),
 
     trial_quantities = loo::nlist(
-      drop_trt_at,
-      trigger_effective_at, trigger_equivalent_at, trigger_ineffective_at,
-      trigger_effective, trigger_equivalent, trigger_ineffective, trigger_futility,
-      final_effective, final_ineffective, final_equivalent, final_futile
+      trig_drop_at, trig_eff_at, trig_equ_at, trig_ineff_at, trig_fut_at, trig_sup_at, trig_inf_at,
+      trig_drop, trig_eff, trig_equ, trig_ineff, trig_fut, trig_sup, trig_inf,
+      final_active, final_eff, final_ineff, final_equ, final_fut, final_sup, final_inf
     ),
 
     result_quantities = c(
       stop_early = stop_early,
-      stop_at = stop_at,
-      drop_soc_at = unname(drop_soc_at),
-      futility = futility,
-      success = success,
-      effective = effective,
-      ineffective = ineffective)
+      stop_at = stop_at)
   )
 
 
@@ -569,14 +602,24 @@ ascot_trial2 <- function(
   trt_fut <- trt_fut[indx, , drop = F]
   trt_bes <- trt_bes[indx, , drop = F]
   trt_in_best <- trt_in_best[indx, , drop = F]
-  is_trt_effective <-is_trt_effective[indx, , drop = F]
-  is_trt_equivalent <- is_trt_equivalent[indx, , drop = F]
-  is_trt_ineffective <- is_trt_ineffective[indx, , drop = F]
-  is_trt_futile <- is_trt_futile[indx, , drop = F]
+  is_trt_eff <-is_trt_eff[indx, , drop = F]
+  is_trt_equ <- is_trt_equ[indx, , drop = F]
+  is_trt_ineff <- is_trt_ineff[indx, , drop = F]
+  is_trt_fut <- is_trt_fut[indx, , drop = F]
   is_trt_active <- is_trt_active[indx, , drop = F]
-  is_trt_superior = is_trt_superior[indx, , drop = F]
-  is_trt_inferior = is_trt_inferior[indx, , drop = F]
+  is_trt_sup = is_trt_sup[indx, , drop = F]
+  is_trt_inf = is_trt_inf[indx, , drop = F]
   p_rand_trt <- p_rand_trt[indx, , drop = F]
+
+  ctr_mu <- ctr_mu[indx, , drop = F]
+  ctr_lb <- ctr_lb[indx, , drop = F]
+  ctr_ub <- ctr_ub[indx, , drop = F]
+  ctr_eff <- ctr_eff[indx, , drop = F]
+  ctr_fut <- ctr_fut[indx, , drop = F]
+  ctr_equ <- ctr_equ[indx, , drop = F]
+  is_ctr_eff <- is_ctr_eff[indx, , drop = F]
+  is_ctr_fut <- is_ctr_fut[indx, , drop = F]
+  is_ctr_equ <- is_ctr_equ[indx, , drop = F]
 
   interim_results <- list(
     arm_quantities = loo::nlist(
@@ -585,14 +628,19 @@ ascot_trial2 <- function(
       p_rand, arm_mu, arm_var, arm_lb, arm_ub
     ),
 
-    par_quantities = loo::nlist(
-      par_mu, par_var, par_lb, par_ub, par_eff, par_equ, par_fut
-    ),
+    # par_quantities = loo::nlist(
+    #   par_mu, par_var, par_lb, par_ub, par_eff, par_equ, par_fut
+    # ),
 
     trt_quantities = loo::nlist(
       n_agg_enr_trt, y_agg_enr_trt, n_agg_obs_trt, y_agg_obs_trt,
       p_rand_trt, trt_mu, trt_lb, trt_ub, trt_eff, trt_equ, trt_fut, trt_bes, trt_in_best,
-      is_trt_effective, is_trt_equivalent, is_trt_ineffective, is_trt_active, is_trt_futile, is_trt_superior, is_trt_inferior
+      is_trt_eff, is_trt_equ, is_trt_ineff, is_trt_active, is_trt_fut, is_trt_sup, is_trt_inf
+    ),
+
+    ctr_quantities = loo::nlist(
+      ctr_mu, ctr_lb, ctr_ub, ctr_eff, ctr_fut, ctr_equ,
+      is_ctr_eff, is_ctr_fut, is_ctr_equ
     )
   )
 
@@ -637,6 +685,30 @@ tibble_arm_quantities <- function(dat, final = TRUE, ...) {
 #' @export
 #'
 #' @importFrom dplyr %>%
+tibble_par_quantities <- function(dat, final = TRUE, ...) {
+  quant <- ifelse(final, "final_results", "interim_results")
+  dplyr::bind_rows(parallel::mclapply(dat, function(i) {
+    tq <- i[[quant]][["par_quantities"]]
+    lapply(1:length(tq),
+           function(x) {
+             tidyr::gather(tidyr::as_tibble(tq[[x]], rownames = "interim"), "parameter", !!names(tq)[x], -interim)
+           }) %>%
+      purrr::reduce(dplyr::full_join, by = c("interim", "parameter")) %>%
+      dplyr::mutate(parameter = forcats::fct_inorder(parameter)) %>%
+      dplyr::arrange(interim, parameter)}, ...), .id = "trial") %>%
+    dplyr::mutate(trial = as.numeric(trial), interim = as.numeric(interim)) %>%
+    dplyr::arrange(trial, interim)
+}
+
+
+
+#' Group list of trial outcomes into a tibble
+#'
+#' @param dat The results of `ascot_trial2` as a list
+#' @param ... Other arguments to `mclapply`
+#' @export
+#'
+#' @importFrom dplyr %>%
 tibble_trt_quantities <- function(dat, final = TRUE, ...) {
   quant <- ifelse(final, "final_results", "interim_results")
   dplyr::bind_rows(parallel::mclapply(dat, function(i) {
@@ -648,6 +720,29 @@ tibble_trt_quantities <- function(dat, final = TRUE, ...) {
       purrr::reduce(dplyr::full_join, by = c("interim", "treatment")) %>%
       dplyr::mutate(treatment = forcats::fct_inorder(treatment)) %>%
       dplyr::arrange(interim, treatment)}, ...), .id = "trial") %>%
+    dplyr::mutate(trial = as.numeric(trial), interim = as.numeric(interim)) %>%
+    dplyr::arrange(trial, interim)
+}
+
+
+#' Group list of trial outcomes into a tibble
+#'
+#' @param dat The results of `ascot_trial2` as a list
+#' @param ... Other arguments to `mclapply`
+#' @export
+#'
+#' @importFrom dplyr %>%
+tibble_ctr_quantities <- function(dat, final = TRUE, ...) {
+  quant <- ifelse(final, "final_results", "interim_results")
+  dplyr::bind_rows(parallel::mclapply(dat, function(i) {
+    tq <- i[[quant]][["ctr_quantities"]]
+    lapply(1:length(tq),
+           function(x) {
+             tidyr::gather(tidyr::as_tibble(tq[[x]], rownames = "interim"), "contrast", !!names(tq)[x], -interim)
+           }) %>%
+      purrr::reduce(dplyr::full_join, by = c("interim", "contrast")) %>%
+      dplyr::mutate(contrast = forcats::fct_inorder(contrast)) %>%
+      dplyr::arrange(interim, contrast)}, ...), .id = "trial") %>%
     dplyr::mutate(trial = as.numeric(trial), interim = as.numeric(interim)) %>%
     dplyr::arrange(trial, interim)
 }
