@@ -4,14 +4,22 @@
 #'@param n_seq The sequence of interim analysis in terms of sample size
 #'@param delta The reference log-odds value for futility
 #'@param effective_thres The threshold for declaring a treatment effective
+#'@param ineffective_thres The threshold for declaring harm
+#'@param inferior_thres The threshold for declaring inferiority, scaled by number of arms in domain
 #'@param equivalent_thres The threshold for declaring a treatment equivalent to SoC
 #'@param futility_thres The threshold for declaring a treatment futile
+#'@param superior_thres The threshold for declaring superiority, scaled by number of arms in domain
 #'@param rar_control Indicate if control should be included in RAR or fixed to 1/(num active arms)
 #'@param rar_best Indicate if RAR should be proportional to Pr(best) or Pr(effective)
+#'@param rar_scale Scaling factor for RAR
+#'@param use_optimal Use optimal allocation ratios
+#'@param early_t Timing of early event
+#'@param return_all Return all interim results
 #'@param min_rar The minimum allocation to an arm in each domain (e.g. if Pr(alloc=1)<min_rar then set Pr(alloc=1)=min_rar)
 #'@param perm_drop Permanently drop arms or only suspend them
 #'@param use_mwud Use Mass-Weighted Urn for randomisation or just simple randomisation
 #'@param mc_draw The number of Monte Carlo draws to use for computing posterior quantities
+#'@param ... Other arguments
 #'
 #' @export
 ascot_trial2 <- function(
@@ -31,7 +39,7 @@ ascot_trial2 <- function(
   perm_drop = TRUE,
   use_mwud = TRUE,
   use_optimal = FALSE,
-  early_t = 7,
+  early_t = 28,
   mc_draw = 2e4,
   return_all = FALSE,
   ...
@@ -41,7 +49,7 @@ ascot_trial2 <- function(
 
   # Priors
   M0 <- rep(0, 10)
-  S0 <- diag(100, 10)
+  S0 <- diag(c(100, rep(2.5^2, 9)))
 
 
   # DESIGN #
@@ -656,6 +664,7 @@ ascot_trial2 <- function(
 #' Group list of trial outcomes into a tibble
 #'
 #' @param dat The results of `ascot_trial2` as a list
+#' @param final Return data from final analysis or interims
 #' @param ... Other arguments to `mclapply`
 #' @export
 #'
@@ -681,6 +690,7 @@ tibble_arm_quantities <- function(dat, final = TRUE, ...) {
 #' Group list of trial outcomes into a tibble
 #'
 #' @param dat The results of `ascot_trial2` as a list
+#' @param final Return data from final analysis or interims
 #' @param ... Other arguments to `mclapply`
 #' @export
 #'
@@ -705,6 +715,7 @@ tibble_par_quantities <- function(dat, final = TRUE, ...) {
 #' Group list of trial outcomes into a tibble
 #'
 #' @param dat The results of `ascot_trial2` as a list
+#' @param final Return data from final analysis or interims
 #' @param ... Other arguments to `mclapply`
 #' @export
 #'
@@ -728,6 +739,7 @@ tibble_trt_quantities <- function(dat, final = TRUE, ...) {
 #' Group list of trial outcomes into a tibble
 #'
 #' @param dat The results of `ascot_trial2` as a list
+#' @param final Return data from final analysis or interims
 #' @param ... Other arguments to `mclapply`
 #' @export
 #'

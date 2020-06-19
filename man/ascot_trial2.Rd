@@ -21,7 +21,7 @@ ascot_trial2(
   perm_drop = TRUE,
   use_mwud = TRUE,
   use_optimal = FALSE,
-  early_t = 7,
+  early_t = 28,
   mc_draw = 20000,
   return_all = FALSE,
   ...
@@ -40,9 +40,17 @@ ascot_trial2(
 
 \item{futility_thres}{The threshold for declaring a treatment futile}
 
+\item{ineffective_thres}{The threshold for declaring harm}
+
+\item{inferior_thres}{The threshold for declaring inferiority, scaled by number of arms in domain}
+
+\item{superior_thres}{The threshold for declaring superiority, scaled by number of arms in domain}
+
 \item{rar_control}{Indicate if control should be included in RAR or fixed to 1/(num active arms)}
 
 \item{rar_best}{Indicate if RAR should be proportional to Pr(best) or Pr(effective)}
+
+\item{rar_scale}{Scaling factor for RAR}
 
 \item{min_rar}{The minimum allocation to an arm in each domain (e.g. if Pr(alloc=1)<min_rar then set Pr(alloc=1)=min_rar)}
 
@@ -50,7 +58,15 @@ ascot_trial2(
 
 \item{use_mwud}{Use Mass-Weighted Urn for randomisation or just simple randomisation}
 
+\item{use_optimal}{Use optimal allocation ratios}
+
+\item{early_t}{Timing of early event}
+
 \item{mc_draw}{The number of Monte Carlo draws to use for computing posterior quantities}
+
+\item{return_all}{Return all interim results}
+
+\item{...}{Other arguments}
 }
 \description{
 Run updated ASCOT trial simulation

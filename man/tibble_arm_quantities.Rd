@@ -9,6 +9,8 @@ tibble_arm_quantities(dat, final = TRUE, ...)
 \arguments{
 \item{dat}{The results of `ascot_trial2` as a list}
 
+\item{final}{Return data from final analysis or interims}
+
 \item{...}{Other arguments to `mclapply`}
 }
 \description{
