@@ -55,26 +55,11 @@ ascot_trial2 <- function(
   # DESIGN #
   #--------#
 
-  # Design matrix for domains
-  Xa <- rbind(0, cbind(diag(1, 4), 0), c(1, 1, 0, 0, 1))
-  colnames(Xa) <- c("a1", "a2", "a3", "a4", "a1:a2")
-  rownames(Xa) <- c("a0", "a1", "a2", "a3", "a4", "a1+a2")
-  Xb <- rbind(0, diag(1, 3))
-  colnames(Xb) <- c("b1", "b2", "b3")
-  rownames(Xb) <- c("b0", "b1", "b2", "b3")
-  Xc <- rbind(0, diag(1))
-  colnames(Xc) <- c("c1")
-  rownames(Xc) <- c("c0", "c1")
-  X <- tidyr::expand_grid(as.data.frame(Xa), as.data.frame(Xb), as.data.frame(Xc))
-  X <- cbind("a0b0c0" = 1, as.matrix(X))
-  rownames(X) <- sapply(1:nrow(X), function(i)
-    paste(colnames(X)[!grepl("(a0b0c0|:)", colnames(X))][X[i, !grepl("(a0b0c0|:)", colnames(X))] == 1], collapse = "+"))
-  rownames(X)[1] <- "a0b0c0"
 
   # Arm indicator designs, note that "x0" indicates nothing (or SoC) from domain x
   # I.e. does the regimen involve this treatment.
   XIa <- diag(1, 6)
-  colnames(XIa) <- rownames(XIa) <- c("a0", "a1", "a2", "a3", "a4", "a1:a2")
+  colnames(XIa) <- rownames(XIa) <- c("a0", "a1", "a2", "a3", "a4", "a5")
   XIb <- diag(1, 4)
   colnames(XIb) <- rownames(XIb) <- c("b0", "b1", "b2", "b3")
   XIc <- diag(1, 2)
@@ -83,6 +68,24 @@ ascot_trial2 <- function(
   XI <- as.matrix(XI)
   rownames(XI) <- sapply(1:nrow(XI), function(i)
     paste(gsub(":", "", colnames(XI)[XI[i, ] == 1]), collapse = ""))
+
+
+  # Design matrix for domains
+  Xa <- rbind(0, cbind(diag(1, 4), 0), c(1, 1, 0, 0, 1))
+  colnames(Xa) <- c("a1", "a2", "a3", "a4", "a1:a2")
+  rownames(Xa) <- c("a0", "a1", "a2", "a3", "a4", "a5")
+  Xb <- rbind(0, diag(1, 3))
+  colnames(Xb) <- c("b1", "b2", "b3")
+  rownames(Xb) <- c("b0", "b1", "b2", "b3")
+  Xc <- rbind(0, diag(1))
+  colnames(Xc) <- c("c1")
+  rownames(Xc) <- c("c0", "c1")
+  X <- tidyr::expand_grid(as.data.frame(Xa), as.data.frame(Xb), as.data.frame(Xc))
+  X <- cbind("a0b0c0" = 1, as.matrix(X))
+  rownames(X) <- rownames(XI)
+  rownames(X) <- sapply(1:nrow(X), function(i)
+    paste(colnames(X)[!grepl("(a0b0c0|:)", colnames(X))][X[i, !grepl("(a0b0c0|:)", colnames(X))] == 1], collapse = "+"))
+  rownames(X)[1] <- "a0b0c0"
 
   # Arm to domain map
   XM <- tidyr::expand_grid(a = 1:6, b = 1:4, c = 1:2)
@@ -94,8 +97,8 @@ ascot_trial2 <- function(
   Xint <- cbind(X, Xab, Xac, Xbc)
 
   # Other pairwise contrasts of interest, e.g. is a1:a2 better than a1 or a2 alone.
-  Ca <- rbind("a1:a2 - a1" = c(0, 0, 1, 0, 0, 1, 0, 0, 0, 0),
-              "a1:a2 - a2" = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0))
+  Ca <- rbind("a5 - a1" = c(0, 0, 1, 0, 0, 1, 0, 0, 0, 0),
+              "a5 - a2" = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0))
   colnames(Ca) <- colnames(X)
 
   # Initialise allocation ratios
@@ -139,21 +142,27 @@ ascot_trial2 <- function(
 
   # Output labels
   arm_names <- rownames(XI)
+  trt_names <- colnames(XI)
   par_names <- colnames(X)
+  act_names <- trt_names[!grepl("0", trt_names)]
+
   arm_dm <- list("interim" = 1:n_int, "arm" = arm_names)
   arm_dm2 <- list("interim" = 1:n_int, "arm" = arm_names[-1])
-  par_dm <- list("interim" = 1:n_int, "treatment" = par_names)
-  par_dm2 <- list("interim" = 1:n_int, "treatment" = par_names[-1])
+  trt_dm <- list("interim" = 1:n_int, "treatment" = trt_names)
+  trt_dm2 <- list("interim" = 1:n_int, "treatment" = trt_names[-1])
+  act_dm <- list("interim" = 1:n_int, "treatment" = act_names)
+  par_dm <- list("interim" = 1:n_int, "parameter" = par_names)
+  par_dm2 <- list("interim" = 1:n_int, "parameter" = par_names[-1])
 
   # Data aggregation storage
   n_agg_enr <- matrix(0, n_int, n_arms, dimnames = arm_dm)
   y_agg_enr <- matrix(0, n_int, n_arms, dimnames = arm_dm)
   n_agg_obs <- matrix(0, n_int, n_arms, dimnames = arm_dm)
   y_agg_obs <- matrix(0, n_int, n_arms, dimnames = arm_dm)
-  n_agg_enr_trt <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  y_agg_enr_trt <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  n_agg_obs_trt <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  y_agg_obs_trt <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
+  n_agg_enr_trt <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
+  y_agg_enr_trt <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
+  n_agg_obs_trt <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
+  y_agg_obs_trt <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
 
   # Allocation probabilities by domain and overall
   p_rand_a <- matrix(ratio_dom$A, n_int + 1, nrow(Xa), byrow = T,
@@ -182,24 +191,24 @@ ascot_trial2 <- function(
   par_equ <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2) # Pr(-d<b<d)
 
   # Treatment storage
-  trt_mu  <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_var <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_lb  <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_ub  <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_eff <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_fut <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_equ <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_bes <- matrix(0, n_int, n_pars - 1, dimnames = par_dm2)
-  trt_bes_all <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  trt_in_best <- matrix(0, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
+  trt_mu  <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_var <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_lb  <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_ub  <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_eff <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_fut <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_equ <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_bes <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
+  trt_bes_all <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
+  trt_in_best <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
 
-  is_trt_active      <- matrix(TRUE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  is_trt_eff   <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2)
-  is_trt_equ  <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<0)
-  is_trt_ineff <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(sum(b)<d)
-  is_trt_fut      <- matrix(FALSE, n_int, n_pars - 1, dimnames = par_dm2) # Pr(-d<sum(b)<d)
-  is_trt_sup    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
-  is_trt_inf    <- matrix(FALSE, n_int, ncol(XI), dimnames = list(interim = 1:n_int, treatment = colnames(XI)))
+  is_trt_active <- matrix(TRUE, n_int, ncol(XI), dimnames = trt_dm)
+  is_trt_eff    <- matrix(FALSE, n_int, n_pars - 1, dimnames = act_dm)
+  is_trt_equ    <- matrix(FALSE, n_int, n_pars - 1, dimnames = act_dm) # Pr(sum(b)<0)
+  is_trt_ineff  <- matrix(FALSE, n_int, n_pars - 1, dimnames = act_dm) # Pr(sum(b)<d)
+  is_trt_fut    <- matrix(FALSE, n_int, n_pars - 1, dimnames = act_dm) # Pr(-d<sum(b)<d)
+  is_trt_sup    <- matrix(FALSE, n_int, ncol(XI), dimnames = trt_dm)
+  is_trt_inf    <- matrix(FALSE, n_int, ncol(XI), dimnames = trt_dm)
 
   # Additional constrast storage
   ctr_mu <- matrix(0, n_int, nrow(Ca), dimnames = list(interim = 1:n_int, contrast = rownames(Ca)))
@@ -380,7 +389,7 @@ ascot_trial2 <- function(
     is_trt_fut[i, ] <- trt_fut[i, ] > futility_thres         # Insufficiently better than SoC
 
     # Check the extra contrasts for a1:a2 interaction futility
-    is_trt_fut[i, "a1:a2"] <- any(is_ctr_fut[i, ])
+    is_trt_fut[i, "a5"] <- any(is_ctr_fut[i, ])
 
     # Active treatments in domain
     # Refer to model document for the decision triggers, but basically
