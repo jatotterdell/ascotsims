@@ -7,6 +7,7 @@
 ascot_trial2(
   b,
   n_seq,
+  S0 = diag(c(100, rep(2.5^2, 9))),
   delta = log(1.2),
   effective_thres = 0.99,
   equivalent_thres = 0.9,
@@ -31,6 +32,8 @@ ascot_trial2(
 \item{b}{The true log-odds parameter}
 
 \item{n_seq}{The sequence of interim analysis in terms of sample size}
+
+\item{S0}{The prior covariance matrix}
 
 \item{delta}{The reference log-odds value for futility}
 

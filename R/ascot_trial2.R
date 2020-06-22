@@ -2,6 +2,7 @@
 #'
 #'@param b The true log-odds parameter
 #'@param n_seq The sequence of interim analysis in terms of sample size
+#'@param S0 The prior covariance matrix
 #'@param delta The reference log-odds value for futility
 #'@param effective_thres The threshold for declaring a treatment effective
 #'@param ineffective_thres The threshold for declaring harm
@@ -25,6 +26,7 @@
 ascot_trial2 <- function(
   b,
   n_seq,
+  S0 = diag(c(100, rep(2.5^2, 9))),
   delta = log(1.2),
   effective_thres = 0.99,
   equivalent_thres = 0.9,
@@ -49,7 +51,6 @@ ascot_trial2 <- function(
 
   # Priors
   M0 <- rep(0, 10)
-  S0 <- diag(c(100, rep(2.5^2, 9)))
 
 
   # DESIGN #
@@ -324,14 +325,21 @@ ascot_trial2 <- function(
     # reg_draws <- par_draws[, -1] %*% t(X[, -1][-1, ])
 
     # Parameter summaries
-    # hdival <- HDInterval::hdi(par_draws)
-    # par_mu[i, ]  <- matrixStats::colMeans2(par_draws)
-    # par_var[i, ] <- diag(mod$Sigma)
-    # par_lb[i, ]  <- hdival[1, ]
-    # par_ub[i, ]  <- hdival[2, ]
+    hdival <- HDInterval::hdi(par_draws)
+    par_mu[i, ]  <- matrixStats::colMeans2(par_draws)
+    par_var[i, ] <- diag(mod$Sigma)
+    par_lb[i, ]  <- hdival[1, ]
+    par_ub[i, ]  <- hdival[2, ]
     # par_eff[i, ] <- matrixStats::colMeans2(par_draws[, -1] < 0)
     # par_fut[i, ] <- matrixStats::colMeans2(par_draws[, -1] > -delta)
     # par_equ[i, ] <- matrixStats::colMeans2(abs(par_draws[, -1]) < delta)
+
+    # Arm summaries
+    hdival <- HDInterval::hdi(p_draws)
+    arm_mu[i, ] <- matrixStats::colMeans2(p_draws)
+    arm_var[i, ] <- matrixStats::colVars(p_draws)
+    arm_lb[i, ] <- hdival[1, ]
+    arm_ub[i, ] <- hdival[2, ]
 
     # Contrast summaries
     hdival <- HDInterval::hdi(ctr_draws)
@@ -416,12 +424,7 @@ ascot_trial2 <- function(
       }
     }
 
-    # Arm summaries
-    hdival <- HDInterval::hdi(p_draws)
-    arm_mu[i, ] <- matrixStats::colMeans2(p_draws)
-    arm_var[i, ] <- matrixStats::colVars(p_draws)
-    arm_lb[i, ] <- hdival[1, ]
-    arm_ub[i, ] <- hdival[2, ]
+
 
     # If drop permanently, was the arm already inactive?
     if(perm_drop & i > 1) {
@@ -504,11 +507,6 @@ ascot_trial2 <- function(
   trig_inf   <- !is.na(trig_inf_at)
   trig_drop  <- !is.na(trig_drop_at)
 
-  # trig_ineff <- ifelse(is.na(trig_ineff_at), FALSE, ifelse(trig_ineff_at < n_int, TRUE, FALSE))
-  # trig_equ <- ifelse(is.na(trig_equ_at), FALSE, ifelse(trig_equ_at < n_int, TRUE, FALSE))
-  # trig_eff <- ifelse(is.na(trigger_eff_at), FALSE, ifelse(trigger_eff_at < n_int, TRUE, FALSE))
-  # trig_futility <- ifelse(is.na(trigger_fut_at), FALSE, ifelse(trigger_fut_at < n_int, TRUE, FALSE))
-
   final_eff    <- is_trt_eff[i, ]
   final_ineff  <- is_trt_ineff[i, ]
   final_equ    <- is_trt_equ[i, ]
@@ -523,6 +521,8 @@ ascot_trial2 <- function(
   final_results <- list(
 
     arm_quantities = list(
+      n_agg_enr = n_agg_enr[i, , drop = F],
+      y_agg_enr = y_agg_enr[i, , drop = F],
       n_agg_obs = n_agg_obs[i, , drop = F],
       y_agg_obs = y_agg_obs[i, , drop = F],
       p_rand = p_rand[i, , drop = F],
@@ -532,15 +532,15 @@ ascot_trial2 <- function(
       arm_ub = arm_ub[i, , drop = F]
     ),
 
-    # par_quantities = list(
-    #   par_mu = par_mu[i, , drop = F],
-    #   par_var = par_var[i, , drop = F],
-    #   par_lb = par_lb[i, , drop = F],
-    #   par_ub = par_ub[i, , drop = F],
+    par_quantities = list(
+      par_mu = par_mu[i, , drop = F],
+      par_var = par_var[i, , drop = F],
+      par_lb = par_lb[i, , drop = F],
+      par_ub = par_ub[i, , drop = F]
     #   par_eff = par_eff[i, , drop = F],
     #   par_equ = par_equ[i, , drop = F],
     #   par_fut = par_fut[i, , drop = F]
-    # ),
+    ),
 
     trt_quantities = list(
       p_rand_trt = p_rand_trt[i, , drop = F],
@@ -608,9 +608,10 @@ ascot_trial2 <- function(
   par_var <- par_var[indx, , drop = F]
   par_lb <- par_lb[indx, , drop = F]
   par_ub <- par_ub[indx, , drop = F]
-  par_eff <- par_eff[indx, , drop = F]
-  par_equ <- par_equ[indx, , drop = F]
-  par_fut <- par_fut[indx, , drop = F]
+  # par_eff <- par_eff[indx, , drop = F]
+  # par_equ <- par_equ[indx, , drop = F]
+  # par_fut <- par_fut[indx, , drop = F]
+
   trt_mu <- trt_mu[indx, , drop = F]
   trt_lb <- trt_lb[indx, , drop = F]
   trt_ub <- trt_ub[indx, , drop = F]
@@ -645,9 +646,10 @@ ascot_trial2 <- function(
       p_rand, arm_mu, arm_var, arm_lb, arm_ub
     ),
 
-    # par_quantities = loo::nlist(
-    #   par_mu, par_var, par_lb, par_ub, par_eff, par_equ, par_fut
-    # ),
+    par_quantities = loo::nlist(
+      par_mu, par_var, par_lb, par_ub
+      # par_eff, par_equ, par_fut
+    ),
 
     trt_quantities = loo::nlist(
       n_agg_enr_trt, y_agg_enr_trt, n_agg_obs_trt, y_agg_obs_trt,
