@@ -603,7 +603,7 @@ brar_all <- function(quantity, active, h) {
 
 
 
-brar <- function(quantity, active, h, min_rar, maxit = 10, tol = 1e-8) {
+brar <- function(quantity, active, h, min_rar, miter = 10, tol = 1e-8) {
   arms <- length(active)
   w <- numeric(arms)
   if(!any(active)) {
@@ -617,20 +617,18 @@ brar <- function(quantity, active, h, min_rar, maxit = 10, tol = 1e-8) {
     w[!active] <- 0
     w <- w / sum(w)
   }
-  # Fixed point iterations to normalise
-  # while(any(w < min_rar - tol)) {
-  #   w[w < min_rar & active] <- min_rar
-  #   w <- w / sum(w)
-  # }
-
-  below_min <- w < min_rar & active
-  w[below_min] <- min_rar
-  w[!below_min] <- w[!below_min]*(1 - sum(below_min)*min_rar)/sum(w[!below_min])
+  iter <- 1
+  # Fixed point updates to achieve min_rar
+  while(iter < miter & abs(min(w)-min_rar) > tol) {
+    below_min <- w < min_rar & active
+    w[below_min] <- min_rar
+    w[!below_min] <- w[!below_min]*(1 - sum(below_min)*min_rar)/sum(w[!below_min])
+  }
   return(w)
 }
 
 
-brar_fix <- function(quantity, active, h, min_rar) {
+brar_fix <- function(quantity, active, h, min_rar, miter = 10, tol = 1e-8) {
   arms <- length(active)
   active_arms <- sum(active)
   w <- numeric(arms)
@@ -647,10 +645,14 @@ brar_fix <- function(quantity, active, h, min_rar) {
     w[-1] <- w[-1] / sum(w[-1])
     w[-1] <- (1 - w[1]) * w[-1]
   }
-
-  below_min <- c(FALSE, w[-1] < min_rar & active[-1])
-  w[below_min] <- min_rar
-  w[!below_min] <- w[!below_min]*(1 - sum(below_min)*min_rar)/sum(w[!below_min])
+  iter <- 1
+  # Fixed point updates to achieve min_rar
+  while(iter < miter & abs(min(w)-min_rar) > tol) {
+    below_min <- c(FALSE, w[-1] < min_rar & active[-1])
+    w[below_min] <- min_rar
+    w[!below_min] <- w[!below_min]*(1 - sum(below_min)*min_rar)/sum(w[!below_min])
+    iter <- iter + 1
+  }
   return(w)
 }
 
