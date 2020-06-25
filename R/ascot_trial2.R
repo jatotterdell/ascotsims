@@ -37,6 +37,7 @@ ascot_trial2 <- function(
   rar_control = FALSE,
   rar_best = FALSE,
   rar_scale = 0.5,
+  rar_use_ss = FALSE,
   min_rar = c(0.05, 0.05, 0.1),
   perm_drop = TRUE,
   use_mwud = TRUE,
@@ -434,35 +435,58 @@ ascot_trial2 <- function(
       is_trt_active[i, ] <- is_trt_active[i, ] & is_trt_active[i - 1, ]
     }
 
+
     # Include control group in RAR or not?
     if(rar_control) {
 
+      if(rar_use_ss) {
+        rar_quant <- trt_in_best[i, ] / (n_agg_obs_trt[i, ] + 1)
+      } else {
+        rar_quant <- trt_in_best[i, ]
+      }
+
       p_rand_trt[i + 1, grepl("a", colnames(XI))] <- brar(
-        trt_in_best[i, grepl("a", colnames(XI))], is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
+        rar_quant[grepl("a", colnames(XI))], is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
       p_rand_trt[i + 1, grepl("b", colnames(XI))] <- brar(
-        trt_in_best[i, grepl("b", colnames(XI))], is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
+        rar_quant[grepl("b", colnames(XI))], is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
       p_rand_trt[i + 1, grepl("c", colnames(XI))] <- brar(
-        trt_in_best[i, grepl("c", colnames(XI))], is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
+        rar_quant[grepl("c", colnames(XI))], is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
 
     } else {
 
       if(rar_best) {
 
+        if(rar_use_ss) {
+          rar_quant <- trt_in_best[i, ] / (n_agg_obs_trt[i, ] + 1)
+        } else {
+          rar_quant <- trt_in_best[i, ]
+        }
+
         p_rand_trt[i + 1, grepl("a", colnames(XI))] <- brar_fix(
-          trt_in_best[i, grepl("a", colnames(XI))], is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
+          rar_quant[grepl("a", colnames(XI))], is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
         p_rand_trt[i + 1, grepl("b", colnames(XI))] <- brar_fix(
-          trt_in_best[i, grepl("b", colnames(XI))], is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
+          rar_quant[grepl("b", colnames(XI))], is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
         p_rand_trt[i + 1, grepl("c", colnames(XI))] <- brar_fix(
-          trt_in_best[i, grepl("c", colnames(XI))], is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
+          rar_quant[grepl("c", colnames(XI))], is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
 
       } else {
 
+        if(rar_use_ss) {
+          rar_quant <- c('a0' = 1, trt_eff[i, grepl("a", colnames(X[,-1]))],
+                         'b0' = 1, trt_eff[i, grepl("b", colnames(X[,-1]))],
+                         'c0' = 1, trt_eff[i, grepl("c", colnames(X[,-1]))]) / (n_agg_obs_trt[i, ] + 1)
+        } else {
+          rar_quant <- c(1, trt_eff[i, grepl("a", colnames(X[,-1]))],
+                         1, trt_eff[i, grepl("b", colnames(X[,-1]))],
+                         1, trt_eff[i, grepl("c", colnames(X[,-1]))])
+        }
+
         p_rand_trt[i + 1, grepl("a", colnames(XI))] <- brar_fix(
-          c(1, trt_eff[i, grepl("a", colnames(X[,-1]))]), is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
+          rar_quant[grepl("a", colnames(XI))], is_trt_active[i, grepl("a", colnames(XI))], rar_scale, min_rar[1])
         p_rand_trt[i + 1, grepl("b", colnames(XI))] <- brar_fix(
-          c(1, trt_eff[i, grepl("b", colnames(X[,-1]))]), is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
+          rar_quant[grepl("b", colnames(XI))], is_trt_active[i, grepl("b", colnames(XI))], rar_scale, min_rar[2])
         p_rand_trt[i + 1, grepl("c", colnames(XI))] <- brar_fix(
-          c(1, trt_eff[i, grepl("c", colnames(X[,-1]))]), is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
+          rar_quant[grepl("c", colnames(XI))], is_trt_active[i, grepl("c", colnames(XI))], rar_scale, min_rar[3])
 
       }
     }
