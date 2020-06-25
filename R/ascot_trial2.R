@@ -98,8 +98,11 @@ ascot_trial2 <- function(
   Xint <- cbind(X, Xab, Xac, Xbc)
 
   # Other pairwise contrasts of interest, e.g. is a1:a2 better than a1 or a2 alone.
-  Ca <- rbind("a5 - a1" = c(0, 0, 1, 0, 0, 1, 0, 0, 0, 0),
-              "a5 - a2" = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0))
+  Ca <- rbind(
+    "ME a1"   = c(0, 1, 0, 0, 0, 0.5, 0, 0, 0, 0), # Main effect of a1
+    "ME a2"   = c(0, 0, 1, 0, 0, 0.5, 0, 0, 0, 0), # Main effect of a2
+    "a5 - a1" = c(0, 0, 1, 0, 0, 1, 0, 0, 0, 0),
+    "a5 - a2" = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0))
   colnames(Ca) <- colnames(X)
 
   # Initialise allocation ratios
@@ -397,7 +400,7 @@ ascot_trial2 <- function(
     is_trt_fut[i, ] <- trt_fut[i, ] > futility_thres         # Insufficiently better than SoC
 
     # Check the extra contrasts for a1:a2 interaction futility
-    is_trt_fut[i, "a5"] <- any(is_ctr_fut[i, ])
+    is_trt_fut[i, "a5"] <- any(is_ctr_fut[i, grepl("a5", colnames(is_ctr_fut))])
 
     # Active treatments in domain
     # Refer to model document for the decision triggers, but basically
