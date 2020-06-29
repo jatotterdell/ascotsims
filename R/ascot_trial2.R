@@ -34,6 +34,7 @@ ascot_trial2 <- function(
   ineffective_thres = 0.01,
   inferior_thres = 0.01,
   superior_thres = 0.99,
+  scale_sup_thres = TRUE,
   rar_control = FALSE,
   rar_best = FALSE,
   rar_scale = 0.5,
@@ -206,6 +207,7 @@ ascot_trial2 <- function(
   trt_bes <- matrix(0, n_int, n_pars - 1, dimnames = act_dm)
   trt_bes_all <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
   trt_in_best <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
+  # trt_in_best_act <- matrix(0, n_int, ncol(XI), dimnames = trt_dm)
 
   is_trt_active <- matrix(TRUE, n_int, ncol(XI), dimnames = trt_dm)
   is_trt_eff    <- matrix(FALSE, n_int, n_pars - 1, dimnames = act_dm)
@@ -393,6 +395,7 @@ ascot_trial2 <- function(
       prob_best(eta_draws_c,  minimum = T)
     )
     trt_in_best[i, ] <- matrixStats::colMeans2((matrixStats::rowRanks(eta_draws) == 1) %*% XI)
+    # trt_in_best_act[i, ] <-
 
     # Treatment triggers
     is_trt_eff[i, ] <- trt_eff[i, ] > effective_thres     # Better than SoC
@@ -417,7 +420,13 @@ ascot_trial2 <- function(
       nact <- sum(is_trt_active[i, idx1])
       narm <- length(idx1) # Use narm or narct in inferior?
 
-      is_trt_sup[i, idx1] <- trt_in_best[i, idx1] > superior_thres^(narm - 1)       # Superior (best in domain)
+      if(scale_sup_thres) {
+        sup_ref <- superior_thres^(narm - 1)
+      } else {
+        sup_ref <- superior_thres
+      }
+
+      is_trt_sup[i, idx1] <- trt_in_best[i, idx1] > sup_ref       # Superior (best in domain)
       is_trt_inf[i, idx1] <- trt_in_best[i, idx1] < inferior_thres / (narm - 1) # Inferior (not best in domain)
       is_trt_active[i, idx1[-1]] <- !(is_trt_equ[i, idx2] | is_trt_ineff[i, idx2] | is_trt_fut[i, idx2] | is_trt_inf[i, idx1[-1]])
       is_trt_active[i, idx1[1]] <- !any(is_trt_eff[i, idx2] | is_trt_inf[i, idx1[1]])
