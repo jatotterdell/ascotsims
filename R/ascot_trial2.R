@@ -404,7 +404,7 @@ ascot_trial2 <- function(
     is_trt_fut[i, ] <- trt_fut[i, ] > futility_thres         # Insufficiently better than SoC
 
     # Check the extra contrasts for a1:a2 interaction futility
-    is_trt_fut[i, "a5"] <- any(is_ctr_fut[i, grepl("a5", colnames(is_ctr_fut))])
+    is_trt_fut[i, "a5"] <- any(is_ctr_fut[i, grepl("a5", colnames(is_ctr_fut))]) | is_trt_fut[i, "a5"]
 
     # Active treatments in domain
     # Refer to model document for the decision triggers, but basically
