@@ -10,9 +10,11 @@
 #'@param equivalent_thres The threshold for declaring a treatment equivalent to SoC
 #'@param futility_thres The threshold for declaring a treatment futile
 #'@param superior_thres The threshold for declaring superiority, scaled by number of arms in domain
+#'@param scale_sup_thres Scale the superiorirty threshold by number of arms in domain?
 #'@param rar_control Indicate if control should be included in RAR or fixed to 1/(num active arms)
 #'@param rar_best Indicate if RAR should be proportional to Pr(best) or Pr(effective)
 #'@param rar_scale Scaling factor for RAR
+#'@param rar_use_ss Use sample size in RAR
 #'@param use_optimal Use optimal allocation ratios
 #'@param early_t Timing of early event
 #'@param return_all Return all interim results
@@ -27,23 +29,23 @@ ascot_trial2 <- function(
   b,
   n_seq,
   S0 = diag(c(100, rep(2.5^2, 9))),
-  delta = log(1.2),
+  delta = log(1.1),
   effective_thres = 0.99,
   equivalent_thres = 0.9,
   futility_thres = 0.95,
   ineffective_thres = 0.01,
   inferior_thres = 0.01,
   superior_thres = 0.99,
-  scale_sup_thres = TRUE,
+  scale_sup_thres = FALSE,
   rar_control = FALSE,
-  rar_best = FALSE,
+  rar_best = TRUE,
   rar_scale = 0.5,
-  rar_use_ss = FALSE,
+  rar_use_ss = TRUE,
   min_rar = c(0.05, 0.05, 0.1),
   perm_drop = TRUE,
   use_mwud = TRUE,
   use_optimal = FALSE,
-  early_t = 28,
+  early_t = 0,
   mc_draw = 2e4,
   return_all = FALSE,
   ...
@@ -436,8 +438,6 @@ ascot_trial2 <- function(
         is_trt_active[i, idx1][-bidx] <- FALSE
       }
     }
-
-
 
     # If drop permanently, was the arm already inactive?
     if(perm_drop & i > 1) {

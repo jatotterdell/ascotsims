@@ -10,6 +10,8 @@ colwise_mult(A, B, sep = ".")
 \item{A}{matrix 1}
 
 \item{B}{matrix 2}
+
+\item{sep}{Separation in column names.}
 }
 \value{
 Matrix of interactions between A and B

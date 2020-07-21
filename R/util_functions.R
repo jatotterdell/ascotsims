@@ -19,6 +19,7 @@ findfirst <- function(x, v = NA) {
 #'
 #' @param A matrix 1
 #' @param B matrix 2
+#' @param sep Separation in column names.
 #' @return Matrix of interactions between A and B
 colwise_mult <- function(A, B, sep = ".") {
   out <- t(sapply(1:nrow(A), function(i) tcrossprod(A[i, ], B[i, ])))

@@ -8,21 +8,23 @@ ascot_trial2(
   b,
   n_seq,
   S0 = diag(c(100, rep(2.5^2, 9))),
-  delta = log(1.2),
+  delta = log(1.1),
   effective_thres = 0.99,
   equivalent_thres = 0.9,
   futility_thres = 0.95,
   ineffective_thres = 0.01,
   inferior_thres = 0.01,
   superior_thres = 0.99,
+  scale_sup_thres = FALSE,
   rar_control = FALSE,
-  rar_best = FALSE,
+  rar_best = TRUE,
   rar_scale = 0.5,
+  rar_use_ss = TRUE,
   min_rar = c(0.05, 0.05, 0.1),
   perm_drop = TRUE,
   use_mwud = TRUE,
   use_optimal = FALSE,
-  early_t = 28,
+  early_t = 0,
   mc_draw = 20000,
   return_all = FALSE,
   ...
@@ -49,11 +51,15 @@ ascot_trial2(
 
 \item{superior_thres}{The threshold for declaring superiority, scaled by number of arms in domain}
 
+\item{scale_sup_thres}{Scale the superiorirty threshold by number of arms in domain?}
+
 \item{rar_control}{Indicate if control should be included in RAR or fixed to 1/(num active arms)}
 
 \item{rar_best}{Indicate if RAR should be proportional to Pr(best) or Pr(effective)}
 
 \item{rar_scale}{Scaling factor for RAR}
+
+\item{rar_use_ss}{Use sample size in RAR}
 
 \item{min_rar}{The minimum allocation to an arm in each domain (e.g. if Pr(alloc=1)<min_rar then set Pr(alloc=1)=min_rar)}
 
