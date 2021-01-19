@@ -64,7 +64,7 @@ ascot_trial5 <- function(
   XI <- as.matrix(XI)
   rownames(XI) <- sapply(1:nrow(XI), function(i)
     paste(gsub(":", "", colnames(XI)[XI[i, ] == 1]), collapse = ""))
-
+  Xdef <- cbind(Int = 1, XI[, c(2, 3, 4, 6, 7, 9)])
 
   # Design matrix for domains
   Xa <- eigen(diag(1,4) - 1/4)$vectors[, 1:3]
@@ -79,6 +79,9 @@ ascot_trial5 <- function(
   X <- tidyr::expand_grid(as.data.frame(Xa), as.data.frame(Xb), as.data.frame(Xc))
   X <- cbind("a0b0c0" = 1, as.matrix(X))
   rownames(X) <- rownames(XI)
+
+  # Transform parameters to model coding from treatment coding
+  b <- psolve(X) %*% (Xdef %*% b)
 
   # Arm to domain map
   XM <- tidyr::expand_grid(a = 1:4, b = 1:3, c = 1:2)
