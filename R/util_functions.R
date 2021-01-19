@@ -7,6 +7,7 @@ psolve <- function(X) {
   solve(crossprod(X), t(X))
 }
 
+#' @export
 findfirst <- function(x, v = NA) {
   j <- which(x)
   if(length(j)) min(j) else v
@@ -21,13 +22,12 @@ findfirst <- function(x, v = NA) {
 #' @param B matrix 2
 #' @param sep Separation in column names.
 #' @return Matrix of interactions between A and B
-colwise_mult <- function(A, B, sep = ".") {
-  out <- t(sapply(1:nrow(A), function(i) tcrossprod(A[i, ], B[i, ])))
+colwise_mult <- function(A, B, sep = "") {
+  out <- matrix(apply(A, 2, FUN = function(x) x * B), nrow(A), ncol(A) * ncol(B))
   rownames(out) <- rownames(A)
   colnames(out) <- paste(colnames(A), rep(colnames(B), each = ncol(A)), sep = sep)
   return(out)
 }
-
 
 #' Mass-weighted urn randomisation
 #'
@@ -629,6 +629,7 @@ brar <- function(quantity, active, h, min_rar, miter = 10, tol = 1e-8) {
 }
 
 
+#' @export
 brar_fix <- function(quantity, active, h, min_rar, miter = 10, tol = 1e-8) {
   arms <- length(active)
   active_arms <- sum(active)
@@ -682,4 +683,104 @@ vb_mod <- function(
     mu0 = M0, Sigma0 = S0,
     mu_init = M0, Sigma_init = diag(1, ncol(X)),
     maxiter_jj = 100, alg = "sj", ...)
+}
+
+#' Correct RAR
+#'
+#' @param p The current regimen allocations
+#' @param min_p The targeted allocation for SoC
+#' @param X The indicator design for regimens
+#' @param tol The tolerance level
+#' @param maxiter The maximum iterations
+correct_rar <- function(p, min_p, X, tol = 1e-4, maxiter = 20) {
+  pnew <- p
+  pagg <- drop(p %*% XI)
+  paggnew <- pagg
+  soc <- pagg[grepl("0", colnames(XI))]
+  iter <- 1
+  id_a <- grepl("a[1-9]", names(pnew))
+  id_b <- grepl("b[1-9]", names(pnew))
+  id_c <- grepl("c[1-9]", names(pnew))
+  while(iter <= maxiter & any(abs(soc - min_p) > tol)) {
+    pnew[id_a] <- (1 - min_p[1])*pnew[id_a]/sum(pnew[id_a])
+    pnew[!id_a] <- min_p[1]*pnew[!id_a]/sum(pnew[!id_a])
+    pnew[id_b] <- (1 - min_p[2])*pnew[id_b]/sum(pnew[id_b])
+    pnew[!id_b] <- min_p[2]*pnew[!id_b]/sum(pnew[!id_b])
+    pnew[id_c] <- (1-min_p)[3]*pnew[id_c]/sum(pnew[id_c])
+    pnew[!id_c] <- min_p[3]*pnew[!id_c]/sum(pnew[!id_c])
+    paggnew <- drop(pnew %*% XI)
+    soc <- paggnew[grepl("0", colnames(XI))]
+    iter <- iter + 1
+  }
+  return(pnew)
+}
+
+#' Correct RAR to achieve minimum on SoC
+#'
+#' @param p The current regimen allocations
+#' @param min_p The minimum allocation to SoC
+#' @param X The indicator design for regimens
+#' @param tol The tolerance level
+#' @param maxiter The maximum iterations
+correct_min_rar_soc <- function(p, min_p, act, X, tol = 1e-4, maxiter = 20) {
+  pnew <- p
+  pagg <- drop(p %*% X)
+  paggnew <- pagg
+  soc <- pagg[grepl("0", colnames(X))]
+  correct <- (soc < min_p) * act
+  iter <- 1
+  id_a <- grepl("a[1-9]", names(pnew))
+  id_b <- grepl("b[1-9]", names(pnew))
+  id_c <- grepl("c[1-9]", names(pnew))
+  while(iter <= maxiter & any(abs(soc - min_p)*correct > tol)) {
+    if(correct[1]) {
+      pnew[id_a] <- (1 - min_p[1])*pnew[id_a]/sum(pnew[id_a])
+      pnew[!id_a] <- min_p[1]*pnew[!id_a]/sum(pnew[!id_a])
+    }
+    if(correct[2]) {
+      pnew[id_b] <- (1 - min_p[2])*pnew[id_b]/sum(pnew[id_b])
+      pnew[!id_b] <- min_p[2]*pnew[!id_b]/sum(pnew[!id_b])
+    }
+    if(correct[3]) {
+      pnew[id_c] <- (1-min_p)[3]*pnew[id_c]/sum(pnew[id_c])
+      pnew[!id_c] <- min_p[3]*pnew[!id_c]/sum(pnew[!id_c])
+    }
+    paggnew <- drop(pnew %*% X)
+    soc <- paggnew[grepl("0", colnames(X))]
+    iter <- iter + 1
+  }
+  return(pnew)
+}
+
+#' Correct RAR to achieve minimum across all interventions
+#'
+#' @param p The current regimen allocations
+#' @param min_p The minimum allocation to any active arm in the domain
+#' @param act Active intervention status
+#' @param X The indicator design for regimens
+#' @param tol The tolerance level
+#' @param maxiter The maximum iterations
+#' @export
+correct_min_rar_any <- function(p, min_p, act, X, tol = 1e-4, maxiter = 20) {
+  pnew <- p
+  pagg <- drop(p %*% X)
+  paggnew <- pagg
+
+  labs <- c("a", "b", "c")
+  min_pl <- rep(min_p, sapply(labs, function(x) sum(grepl(x, names(pagg)))))
+
+  correct <- (pagg < min_pl) * act
+  iter <- 1
+  while(iter <= maxiter & any(abs(paggnew - min_pl)*correct > tol) & sum(correct) >= 1) {
+    id_correct <- which(correct == 1)
+    id_reg <- sapply(names(id_correct), function(x) grepl(x, names(p)))
+    for(i in 1:sum(correct)) {
+      pnew[id_reg[, i]] <- min_pl[id_correct[i]]*pnew[id_reg[, i]]/sum(pnew[id_reg[, i]])
+      pnew[!id_reg[, i]] <- (1 - min_pl[id_correct[i]])*pnew[!id_reg[, i]]/sum(pnew[!id_reg[, i]])
+    }
+    paggnew <- drop(pnew %*% X)
+    iter <- iter + 1
+    correct <- (paggnew < min_pl) * act
+  }
+  return(pnew)
 }

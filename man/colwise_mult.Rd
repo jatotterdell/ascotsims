@@ -4,7 +4,7 @@
 \alias{colwise_mult}
 \title{Multiply every column combination between two matrices}
 \usage{
-colwise_mult(A, B, sep = ".")
+colwise_mult(A, B, sep = "")
 }
 \arguments{
 \item{A}{matrix 1}
